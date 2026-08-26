@@ -1,86 +1,101 @@
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
-import numpy as np, os, math, json
+"""Хук по скиллу xeniia-reel-style.
 
-W,H=1080,1920; FPS=30; DUR=2.6; N=int(DUR*FPS)
-F="fonts/"
-theme=json.load(open('/root/.claude/uploads/7d93c517-e279-5632-8766-ab595629b472/3e1675b7-theme.json'))
-ORANGE=tuple(int(theme['colors']['accent'][i:i+2],16) for i in (1,3,5))
-os.makedirs('hookseq',exist_ok=True)
+Тёмная компактная плашка на уровне груди, лицо полностью открыто:
+без тинта, без размытия кадра, без часов. Печать по буквам с курсором.
+Звук печати НЕ добавляется - синтетические клики забракованы дважды.
+"""
+from PIL import Image, ImageDraw, ImageFont
+import os
 
-def fit(fontpath, text, target_w, lo=20, hi=260):
-    while lo<hi:
-        m=(lo+hi+1)//2
-        f=ImageFont.truetype(fontpath,m)
-        if ImageFont.truetype(fontpath,m).getbbox(text)[2]-f.getbbox(text)[0] <= target_w: lo=m
-        else: hi=m-1
-    return ImageFont.truetype(fontpath,lo)
+W, H = 1080, 1920
+FPS = 30
+DUR = 4.30
+N = int(DUR * FPS)
+F = "fonts/"
 
-HEAD="5 ФУНКЦИЙ CLAUDE"
-SCRIPT="о которых зря молчат"
-f_head=fit(F+"Oswald-Bold.ttf",HEAD,int(W*0.84))
-f_scr =fit(F+"MarckFull.ttf",SCRIPT,int(W*0.88))
+CAPS = ["5 ФУНКЦИЙ CLAUDE", "О КОТОРЫХ МОЛЧАТ"]
+CHAR, GAP, START = 0.022, 0.12, 0.35
+FADE_START, FADE_END = 3.85, 4.20
 
-# ---- слой заголовка (белый капс) ----
-head=Image.new('RGBA',(W,H),(0,0,0,0)); d=ImageDraw.Draw(head)
-bb=d.textbbox((0,0),HEAD,font=f_head); hx=(W-(bb[2]-bb[0]))//2-bb[0]; hy=845-(bb[3]-bb[1])//2-bb[1]
-for ox,oy in [(0,3),(3,0),(-3,0),(0,-3)]:
-    d.text((hx+ox,hy+oy),HEAD,font=f_head,fill=(20,28,58,90))
-d.text((hx,hy),HEAD,font=f_head,fill=(255,255,255,255))
+PLATE_RGBA = (8, 12, 24, int(255 * 0.58))
+RADIUS = 30
+PLATE_CY = 1060                      # уровень груди, лицо занимает ~290-670
+TRACK = 7                            # разрядка 6-9 px по скиллу
+SIZE = 63
 
-# ---- слой рукописной строки (оранжевый) ----
-scr=Image.new('RGBA',(W,H),(0,0,0,0)); d2=ImageDraw.Draw(scr)
-bb2=d2.textbbox((0,0),SCRIPT,font=f_scr); sx=(W-(bb2[2]-bb2[0]))//2-bb2[0]; sy=1045-(bb2[3]-bb2[1])//2-bb2[1]
-d2.text((sx+2,sy+3),SCRIPT,font=f_scr,fill=(20,28,58,80))
-d2.text((sx,sy),SCRIPT,font=f_scr,fill=ORANGE+(255,))
-scr_x0, scr_x1 = sx+bb2[0]-8, sx+bb2[2]+14
+font = ImageFont.truetype(F + "Montserrat-500.ttf", SIZE)
+os.makedirs("hookseq", exist_ok=True)
 
-# ---- частицы ----
-rng=np.random.default_rng(3)
-P=95
-px=rng.uniform(0,W,P); py=rng.uniform(0,H,P)
-pr=rng.uniform(2.4,7.5,P); pa=rng.uniform(0.14,0.72,P)
-pvy=rng.uniform(-7,7,P); pph=rng.uniform(0,6.28,P); pfr=rng.uniform(0.5,1.7,P)
 
-def clock(img,t):
-    d=ImageDraw.Draw(img); cx,cy,R=W//2,1496,112
-    d.ellipse([cx-R,cy-R,cx+R,cy+R],outline=(255,255,255,70),width=3)
-    for i in range(12):
-        a=math.radians(i*30); r1=R-(20 if i%3==0 else 12)
-        d.line([cx+r1*math.sin(a),cy-r1*math.cos(a),cx+(R-4)*math.sin(a),cy-(R-4)*math.cos(a)],
-               fill=(255,255,255,95 if i%3==0 else 60),width=3 if i%3==0 else 2)
-    ang=math.radians(118+62*(t/DUR))
-    d.line([cx,cy,cx+(R-26)*math.sin(ang),cy-(R-26)*math.cos(ang)],fill=ORANGE+(230,),width=7)
-    ang2=math.radians(30+150*(t/DUR))
-    d.line([cx,cy,cx+(R-58)*math.sin(ang2),cy-(R-58)*math.cos(ang2)],fill=(255,255,255,190),width=6)
-    d.ellipse([cx-7,cy-7,cx+7,cy+7],fill=(255,255,255,220))
+def measure(s):
+    d = ImageDraw.Draw(Image.new("RGB", (8, 8)))
+    return sum(d.textlength(c, font=font) + TRACK for c in s) - TRACK if s else 0
 
-def ease(x): return 1-(1-x)**3
+
+line_w = [measure(s) for s in CAPS]
+LH = int(SIZE * 1.42)
+pad_x, pad_y = 52, 34
+plate_w = int(max(line_w) + pad_x * 2)
+plate_h = int(LH * len(CAPS) + pad_y * 2)
+plate_x = (W - plate_w) // 2
+plate_y = PLATE_CY - plate_h // 2
+
+starts = []
+t0 = START
+for s in CAPS:
+    starts.append(t0)
+    t0 += len(s) * CHAR + GAP
+
+
+def draw_tracked(d, s, cx, y, alpha):
+    x = cx - measure(s) / 2
+    for c in s:
+        d.text((x, y), c, font=font, fill=(255, 255, 255, alpha))
+        x += d.textlength(c, font=font) + TRACK
+    return x
+
 
 for i in range(N):
-    t=i/FPS
-    fr=Image.new('RGBA',(W,H),(0,0,0,0))
-    dd=ImageDraw.Draw(fr)
-    for k in range(P):
-        y=(py[k]+pvy[k]*t)%H
-        a=int(255*pa[k]*(0.62+0.38*math.sin(pph[k]+t*pfr[k]*2.4)))
-        r=pr[k]
-        dd.ellipse([px[k]-r,y-r,px[k]+r,y+r],fill=(255,255,255,max(a,0)))
-    clock(fr,t)
-    # заголовок: появляется 0.15-0.55
-    hp=min(max((t-0.15)/0.40,0),1)
-    if hp>0:
-        lay=head.copy()
-        if hp<1:
-            al=lay.split()[3].point(lambda v:int(v*ease(hp)))
-            lay.putalpha(al)
-        fr=Image.alpha_composite(fr,lay)
-    # рукописная строка: прописывается 0.75-2.05 слева направо
-    sp=min(max((t-0.75)/1.30,0),1)
-    if sp>0:
-        cut=int(scr_x0+(scr_x1-scr_x0)*sp)
-        mask=Image.new('L',(W,H),0); ImageDraw.Draw(mask).rectangle([0,0,cut,H],fill=255)
-        mask=mask.filter(ImageFilter.GaussianBlur(6))
-        lay=scr.copy(); lay.putalpha(Image.composite(scr.split()[3],Image.new('L',(W,H),0),mask))
-        fr=Image.alpha_composite(fr,lay)
-    fr.save(f'hookseq/{i:04d}.png')
-print("кадров:",N,"| заголовок",f_head.size,"px | рукопись",f_scr.size,"px | оранжевый",ORANGE)
+    t = i / FPS
+    im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+
+    if t < FADE_START:
+        a = 1.0
+    elif t < FADE_END:
+        a = 1 - (t - FADE_START) / (FADE_END - FADE_START)
+    else:
+        a = 0.0
+    if a <= 0:
+        im.save(f"hookseq/{i:04d}.png")
+        continue
+
+    # плашка появляется вместе с первой буквой
+    if t >= START:
+        pa = int(PLATE_RGBA[3] * a * min((t - START) / 0.18, 1))
+        d.rounded_rectangle([plate_x, plate_y, plate_x + plate_w, plate_y + plate_h],
+                            radius=RADIUS, fill=PLATE_RGBA[:3] + (pa,))
+
+    alpha = int(255 * a)
+    cur_x = cur_y = None
+    for li, s in enumerate(CAPS):
+        shown = int(max(0, (t - starts[li]) / CHAR))
+        if shown <= 0:
+            continue
+        txt = s[:shown]
+        y = plate_y + pad_y + li * LH
+        endx = draw_tracked(d, txt, W // 2, y, alpha)
+        if shown < len(s):
+            cur_x, cur_y = endx, y
+        elif li == len(CAPS) - 1:
+            cur_x, cur_y = endx, y
+
+    # курсор-палочка
+    if cur_x is not None and t < FADE_START and int(t * 2.2) % 2 == 0:
+        d.rectangle([cur_x + 4, cur_y + 8, cur_x + 10, cur_y + SIZE + 4],
+                    fill=(255, 255, 255, alpha))
+
+    im.save(f"hookseq/{i:04d}.png")
+
+print(f"кадров {N} | плашка {plate_w}x{plate_h} @ y={plate_y}..{plate_y+plate_h} | лицо ~290-670 -> не пересекается")
+print(f"печать: строки стартуют на {[round(s,3) for s in starts]}, фейд {FADE_START}-{FADE_END}")
