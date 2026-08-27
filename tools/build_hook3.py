@@ -17,8 +17,9 @@ FADE_A, FADE_B = 2.62, 3.05
 CAPS = ["5 ФУНКЦИЙ CLAUDE", "О КОТОРЫХ МОЛЧАТ"]
 SCRIPT = ["и вот что", "он умеет сам"]
 TRACK = 9
-SCRIM_TOP, SCRIM_BOT = 640, 1420      # ниже лица (лицо ~290-670)
-CAP_Y, SCR_Y = 880, 1120
+BAND_TOP, BAND_BOT = 820, 1340        # полоса под текстом, ниже лица (лицо ~290-670)
+FEATHER = 90
+CAP_Y, SCR_Y = 862, 1090
 os.makedirs("hook3", exist_ok=True)
 
 
@@ -40,23 +41,27 @@ fscr = fit(F + "BadScript-Regular.ttf", max(SCRIPT, key=len), int(W * 0.66))
 rng = np.random.default_rng(6)
 P = 55
 px = rng.uniform(0, W, P)
-py = rng.uniform(560, H - 250, P)          # частицы только ниже лица
+py = rng.uniform(700, 1500, P)             # частицы только в зоне полосы
 pr = rng.uniform(2.0, 5.2, P)
 pa = rng.uniform(0.15, 0.6, P)
 pvy = rng.uniform(-5, 5, P)
 pph = rng.uniform(0, 6.28, P)
 
-# мягкая заливка снизу, чтобы текст читался, а лицо осталось открытым
+# выраженная тёмная полоса с мягкими краями - как в эталоне
 scrim = Image.new("RGBA", (W, H), (0, 0, 0, 0))
 sp = scrim.load()
-for y in range(SCRIM_TOP, H):
-    if y < SCRIM_BOT:
-        f = (y - SCRIM_TOP) / (SCRIM_BOT - SCRIM_TOP)
-        a = int(178 * (f ** 1.5))
+PEAK = 196
+for y in range(BAND_TOP - FEATHER, BAND_BOT + FEATHER):
+    if y < BAND_TOP:
+        a = int(PEAK * ((y - (BAND_TOP - FEATHER)) / FEATHER) ** 1.6)
+    elif y > BAND_BOT:
+        a = int(PEAK * (1 - (y - BAND_BOT) / FEATHER) ** 1.6)
     else:
-        a = 178
+        a = PEAK
+    if a <= 0:
+        continue
     for x in range(W):
-        sp[x, y] = (14, 22, 52, a)
+        sp[x, y] = (10, 16, 40, a)
 
 
 def measure(s, f):
@@ -93,7 +98,7 @@ for i in range(N):
     A = int(255 * a)
 
     for k in range(P):
-        y = 560 + (py[k] - 560 + pvy[k] * t) % (H - 810)
+        y = 700 + (py[k] - 700 + pvy[k] * t) % 800
         al = int(255 * pa[k] * (0.6 + 0.4 * math.sin(pph[k] + t * 1.7)) * a)
         d.ellipse([px[k] - pr[k], y - pr[k], px[k] + pr[k], y + pr[k]],
                   fill=(255, 255, 255, max(al, 0)))
@@ -120,6 +125,11 @@ for i in range(N):
         y = SCR_Y + li * LH_S
         d.text((x + 2, y + 4), txt, font=fscr, fill=(8, 14, 34, int(150 * a)))
         d.text((x, y), txt, font=fscr, fill=ORANGE + (A,))
+        last = (li == len(SCRIPT) - 1)
+        typing = shown < len(s)
+        if (typing or (last and t < FADE_A)) and int(t * 2.4) % 2 == 0:
+            cx = x + (b[2] - b[0]) + 14
+            d.rectangle([cx, y + 14, cx + 7, y + fscr.size + 6], fill=ORANGE + (A,))
 
     im.save(f"hook3/{i:04d}.png")
 
