@@ -15,11 +15,11 @@ CHAR, GAP, START = 0.018, 0.10, 0.25
 FADE_A, FADE_B = 2.62, 3.05
 
 CAPS = ["5 ФУНКЦИЙ CLAUDE", "О КОТОРЫХ МОЛЧАТ"]
-SCRIPT = ["и вот что", "он умеет сам"]
+SCRIPT = ["и вот что", "он умеет"]
 TRACK = 9
 BAND_TOP, BAND_BOT = 820, 1340        # полоса под текстом, ниже лица (лицо ~290-670)
 FEATHER = 90
-CAP_Y, SCR_Y = 862, 1090
+CAP_Y, SCR_Y = 856, 1074
 os.makedirs("hook3", exist_ok=True)
 
 
@@ -36,7 +36,7 @@ def fit(path, text, target, lo=30, hi=220):
 
 
 fcap = fit(F + "Montserrat-500.ttf", CAPS[0], int(W * 0.74))
-fscr = fit(F + "BadScript-Regular.ttf", max(SCRIPT, key=len), int(W * 0.66))
+fscr = fit(F + "MarckFull.ttf", max(SCRIPT, key=len), int(W * 0.56))
 
 rng = np.random.default_rng(6)
 P = 55
@@ -75,7 +75,7 @@ for s in CAPS + SCRIPT:
     starts.append(t0)
     t0 += len(s) * CHAR + GAP
 
-LH_C, LH_S = int(fcap.size * 1.36), int(fscr.size * 1.12)
+LH_C, LH_S = int(fcap.size * 1.36), int(fscr.size * 1.30)
 
 for i in range(N):
     t = i / FPS

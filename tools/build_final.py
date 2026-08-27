@@ -11,8 +11,8 @@ F="fonts/"; ORANGE=(255,117,31)
 CHAR=0.025
 os.makedirs('finseq',exist_ok=True)
 
-PLATE="ПОДПИШИСЬ"
-CTX=["И СЛЕДИ ЗА РАЗБОРАМИ","НЕЙРОСЕТЕЙ ДЛЯ БИЗНЕСА"]
+PLATE="КУРС"
+CTX=["ПИШИ В КОММЕНТАРИЯХ","И Я ПРИШЛЮ ПРОГРАММУ"]
 
 def fit(fp,t,tw,lo=20,hi=240):
     while lo<hi:
@@ -21,7 +21,7 @@ def fit(fp,t,tw,lo=20,hi=240):
         else: hi=m-1
     return ImageFont.truetype(F+fp,lo)
 
-fpl=fit("Oswald-Bold.ttf",PLATE,int(W*0.62))
+fpl=fit("Montserrat-700.ttf",PLATE,int(W*0.46))
 fctx=ImageFont.truetype(F+"Montserrat-500.ttf",52)
 
 rng=np.random.default_rng(9)
