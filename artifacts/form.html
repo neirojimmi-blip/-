@@ -1,0 +1,29 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Заявка на курс — Школа ИИ</title>
+<style>
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:#F2F5FB;color:#2E4078}
+.bar{background:#2E4078;color:#fff;padding:14px 28px;display:flex;align-items:center;gap:14px}
+.dot{width:11px;height:11px;border-radius:50%;background:#FF751F}
+.wrap{max-width:760px;margin:38px auto;background:#fff;border-radius:24px;padding:34px 40px;
+ box-shadow:0 20px 50px rgba(23,33,64,.18);border:2px solid rgba(46,64,120,.12)}
+h1{margin:0 0 6px;font-size:30px} p.sub{margin:0 0 26px;color:#5A6A9A}
+label{display:block;font-size:14px;font-weight:600;margin:18px 0 7px}
+input,select{width:100%;padding:13px 15px;border:2px solid #C9D2E8;border-radius:12px;font-size:16px;color:#2E4078}
+input:focus,select:focus{outline:none;border-color:#FF751F}
+.row{display:flex;gap:18px}.row>div{flex:1}
+button{margin-top:26px;width:100%;padding:15px;border:0;border-radius:24px;background:#FF751F;color:#fff;
+ font-size:18px;font-weight:700;cursor:pointer}
+.ok{margin-top:18px;padding:13px 16px;border-radius:12px;background:#E8F7F0;color:#1B7A56;font-weight:600;display:none}
+</style></head><body>
+<div class="bar"><span class="dot"></span><b>Школа ИИ для бизнеса</b><span style="opacity:.6">— заявка на курс</span></div>
+<div class="wrap">
+<h1>Claude от А до Я</h1><p class="sub">Оставьте заявку — пришлём программу и расписание</p>
+<label>Имя</label><input id="name" placeholder="Как к вам обращаться">
+<div class="row"><div><label>Телефон</label><input id="phone" placeholder="+7"></div>
+<div><label>Город</label><input id="city" placeholder="Город"></div></div>
+<label>Формат обучения</label><select id="fmt"><option>Выберите формат</option><option>Офлайн — Тюмень</option><option>Онлайн</option></select>
+<label>Что хотите автоматизировать</label><input id="task" placeholder="Задача">
+<button id="go">Отправить заявку</button>
+<div class="ok" id="ok">Заявка принята — программа отправлена</div>
+</div>
+<script>document.getElementById('go').onclick=()=>{document.getElementById('ok').style.display='block'}</script>
+</body></html>
