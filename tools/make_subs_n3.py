@@ -44,13 +44,19 @@ def norm(w):
 # распознавание слышит бренды на слух — правим написание, тайминги не трогаем
 FIX = {"джипяти": "джипити", "плейс": "чатплейс"}
 DROP_BEFORE = {("чат", "плейс")}
+# «ему отвечает ИИ» распозналось как союз «и» — правим точечно по времени,
+# остальные «и» в тексте настоящие союзы и трогать их нельзя
+AT_TIME = [(15.75, "и", "ИИ")]
 
 words = []
 for w in json.load(open("n3/words.json")):
     if words and (words[-1]["w"], w["w"]) in DROP_BEFORE:
         words.pop()                      # «чат плейс» -> одно слово «чатплейс»
-    w = dict(w, w=FIX.get(w["w"], w["w"]))
-    words.append(w)
+    new = FIX.get(w["w"], w["w"])
+    for tt, was, now in AT_TIME:
+        if abs(w["t"] - tt) < 0.05 and w["w"] == was:
+            new = now
+    words.append(dict(w, w=new))
 for w in words:
     w["t"] /= TEMPO
 LAST = 40.82 / TEMPO

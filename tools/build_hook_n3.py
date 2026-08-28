@@ -15,6 +15,9 @@
 Строки ставятся по реальному боксу чернил, а не по кеглю: у Pushkin высокие
 росчерки, петля у «к» уходит выше строки и наезжает на предыдущую.
 
+Выключка влево: при центрировании строки разной длины расходятся веером
+и блок выглядит рыхлым. По левому краю он собран и плашка выходит уже.
+
 Белых точек нет, кадр не размывается и не затемняется целиком.
 """
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -31,7 +34,7 @@ FADE_A, FADE_B = 3.34, 3.84
 CAPS = ["ВЫИГРЫВАЕТ НЕ ТОТ,", "КТО ОБЩАЕТСЯ С ИИ"]
 SCRIPT = ["а тот, кто дал ему", "доступ к своей", "рабочей среде"]
 TRACK = 7
-BLOCK_TOP = 740                # ниже лица
+BLOCK_TOP = 772                # ниже лица
 os.makedirs("n3/hook", exist_ok=True)
 
 _m = ImageDraw.Draw(Image.new("RGB", (8, 8)))
@@ -49,7 +52,7 @@ def fit(path, text, target, lo=30, hi=230):
 
 
 fcap = fit(F + "Montserrat-500.ttf", CAPS[0], int(W * 0.70))
-fscr = fit(F + "Pushkin.ttf", max(SCRIPT, key=len), int(W * 0.76))
+fscr = fit(F + "Pushkin.ttf", max(SCRIPT, key=len), int(W * 0.70))
 
 
 def measure(s, f):
@@ -62,30 +65,37 @@ for s in CAPS + SCRIPT:
     t0 += len(s) * CHAR + GAP
 TYPED_AT = round(t0 - GAP, 2)
 
-LH_C = int(fcap.size * 1.24)
+LH_C = int(fcap.size * 1.18)
 
 # прописные — по боксу чернил, с запасом на росчерки
 boxes = [_m.textbbox((0, 0), s, font=fscr) for s in SCRIPT]
-SCR_TOP = BLOCK_TOP + LH_C * len(CAPS) + 34
+SCR_TOP = BLOCK_TOP + LH_C * len(CAPS) + 44
 tops, y = [], SCR_TOP
 for b in boxes:
     tops.append(y - b[1])
     # нахлёста быть не должно: росчерки следующей строки въезжают
     # в предыдущую и фраза перестаёт читаться
-    y += (b[3] - b[1]) + 10
-BLOCK_BOT = y - 10
+    y += (b[3] - b[1]) + 8
+BLOCK_BOT = y - 8
 
 # компактная плашка по ширине самой длинной строки
 w_text = max([measure(s, fcap) for s in CAPS] + [b[2] - b[0] for b in boxes])
-PX, PY_T, PY_B = 54, 40, 44
-px0 = (W - w_text) / 2 - PX
+PX, PY_T, PY_B = 40, 30, 34
+LEFT = (W - w_text) / 2
+px0 = LEFT - PX
 px1 = (W + w_text) / 2 + PX
 py0, py1 = BLOCK_TOP - PY_T, BLOCK_BOT + PY_B
 
+RULE_Y = BLOCK_TOP + LH_C * len(CAPS) + 16   # разделитель капса и каллиграфии
+RULE_W = 118
+
 plate = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-ImageDraw.Draw(plate).rounded_rectangle([px0, py0, px1, py1], radius=30,
-                                        fill=(8, 12, 24, 212))
-plate = plate.filter(ImageFilter.GaussianBlur(3))     # мягкий край
+pd = ImageDraw.Draw(plate)
+pd.rounded_rectangle([px0, py0, px1, py1], radius=28, fill=(8, 12, 24, 205))
+# тонкий световой кант — плашка перестаёт читаться как глухая плита
+pd.rounded_rectangle([px0, py0, px1, py1], radius=28,
+                     outline=(255, 255, 255, 26), width=2)
+plate = plate.filter(ImageFilter.GaussianBlur(2))     # мягкий край
 
 for i in range(N):
     t = i / FPS
@@ -107,12 +117,19 @@ for i in range(N):
         if shown <= 0:
             continue
         txt = s[:shown]
-        x = W / 2 - measure(txt, fcap) / 2
+        x = LEFT
         y = BLOCK_TOP + li * LH_C
         for c in txt:
             d.text((x + 2, y + 3), c, font=fcap, fill=(6, 10, 26, int(170 * a)))
             d.text((x, y), c, font=fcap, fill=(255, 255, 255, A))
             x += d.textlength(c, font=fcap) + TRACK
+
+    # оранжевый разделитель — тот же приём, что во вставках
+    rp = min(max((t - starts[len(CAPS)] + 0.10) / 0.30, 0), 1)
+    if rp > 0:
+        wr = RULE_W * (1 - (1 - rp) ** 3)
+        d.rounded_rectangle([LEFT, RULE_Y, LEFT + wr, RULE_Y + 4],
+                            radius=2, fill=ORANGE + (A,))
 
     # ореол под прописными — из самого текста
     halo = Image.new("RGBA", (W, H), (0, 0, 0, 0))
@@ -124,7 +141,7 @@ for i in range(N):
             continue
         txt = s[:shown]
         b = d.textbbox((0, 0), txt, font=fscr)
-        x = (W - (b[2] - b[0])) // 2 - b[0]
+        x = LEFT + 10 - b[0]
         drawn.append((li, s, txt, b, x, tops[li], shown))
         hd.text((x, tops[li]), txt, font=fscr, fill=(4, 7, 20, int(238 * a)),
                 stroke_width=16, stroke_fill=(4, 7, 20, int(238 * a)))
