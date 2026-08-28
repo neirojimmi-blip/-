@@ -2,23 +2,24 @@
   "fps": 30,
   "size": [1080, 1920],
   "avatar": "av_heygen.mp4",
-  "music": null,
-  "music_gain_db": -12,
+  "avatar_duration": 34.2,
+  "endcard": {"seq": "finb", "dur": 3.6},
   "titles": [
-    {"seq": "t_hook",   "at": 0.4},
-    {"seq": "t_before", "at": 6.0},
-    {"seq": "t_after",  "at": 11.5},
-    {"seq": "t_brow",   "at": 16.0},
-    {"seq": "t_plug",   "at": 21.5},
-    {"seq": "t_out",    "at": 27.0}
+    {"seq": "t_hook",   "at": 0.35,  "dur": 3.0, "on": "Я удалила вкладку Чат Джи Пи Ти"},
+    {"seq": "t_before", "at": 5.05,  "dur": 3.6, "on": "Раньше он писал инструкции"},
+    {"seq": "t_after",  "at": 9.30,  "dur": 2.3, "on": "Теперь я ставлю задачу целиком"},
+    {"seq": "t_brow",   "at": 11.95, "dur": 4.4, "on": "Агент сам работает в браузере"},
+    {"seq": "t_plug",   "at": 16.90, "dur": 3.6, "on": "Через плагины подключается"},
+    {"seq": "t_out",    "at": 24.55, "dur": 4.2, "on": "Пока он собирает, я занимаюсь другим"},
+    {"seq": "ctab",     "at": 29.45, "dur": 2.6, "on": "Пиши ДЕСКТОП в комментариях"}
   ],
   "inserts": [
-    {"file": "rec1_close_tab.mp4",  "at": 1.2,  "dur": 2.5, "note": "закрываю вкладку ChatGPT"},
-    {"file": "rec2_list_answer.mp4","at": 6.4,  "dur": 3.5, "note": "обычный ответ списком"},
-    {"file": "rec3_desktop_task.mp4","at": 11.8, "dur": 4.0, "note": "десктоп: ставлю задачу"},
-    {"file": "rec4_browser.mp4",    "at": 16.4, "dur": 6.0, "note": "агент в браузере"},
-    {"file": "rec5_drive_table.mp4","at": 22.0, "dur": 6.0, "note": "Диск → таблица"},
-    {"file": "rec6_result.mp4",     "at": 24.5, "dur": 5.0, "note": "исходник → готовый файл"},
-    {"file": "rec7_plugins.mp4",    "at": 21.6, "dur": 3.0, "note": "плагины"}
+    {"n": 1, "file": "rec1_close_tab.mp4",   "at": 0.35,  "dur": 2.20, "shoot": 3, "note": "закрываю вкладку ChatGPT в браузере"},
+    {"n": 2, "file": "rec2_list_answer.mp4", "at": 5.10,  "dur": 3.50, "shoot": 4, "note": "обычный ответ ChatGPT со списком действий"},
+    {"n": 3, "file": "rec3_desktop_task.mp4","at": 9.30,  "dur": 2.30, "shoot": 4, "note": "десктопное приложение, ввожу задачу"},
+    {"n": 4, "file": "rec4_browser.mp4",     "at": 11.95, "dur": 4.50, "shoot": 6, "note": "агент работает в браузере, ходит по страницам"},
+    {"n": 7, "file": "rec7_plugins.mp4",     "at": 16.90, "dur": 2.10, "shoot": 3, "note": "интерфейс с подключёнными плагинами"},
+    {"n": 5, "file": "rec5_drive_table.mp4", "at": 19.00, "dur": 2.60, "shoot": 6, "note": "находит документ на Диске, открывает таблицу"},
+    {"n": 6, "file": "rec6_result.mp4",      "at": 21.60, "dur": 2.60, "shoot": 5, "note": "исходный файл и готовый результат"}
   ]
 }

@@ -55,29 +55,38 @@ def build(outdir, text, dur=3.0, accent=None, plate=True):
             im = Image.alpha_composite(im, ov)
             d = ImageDraw.Draw(im)
         x = (W - tw) / 2
-        # акцентное слово оранжевым
-        if accent and accent in text:
-            head, tail = text.split(accent, 1)
-            for part, col in ((head, (255, 255, 255)), (accent, ORANGE), (tail, (255, 255, 255))):
-                if not part:
-                    continue
-                d.text((x + 2, y0 - bb[1] + 18), part, font=f, fill=(8, 12, 30, int(150 * a)))
-                d.text((x, y0 - bb[1] + 16), part, font=f, fill=col + (A,))
-                x += d.textlength(part, font=f)
-        else:
-            d.text((x + 2, y0 - bb[1] + 18), text, font=f, fill=(8, 12, 30, int(150 * a)))
-            d.text((x, y0 - bb[1] + 16), text, font=f, fill=(255, 255, 255, A))
+        parts = ([(text, (255, 255, 255))] if not (accent and accent in text)
+                 else [(p, c) for p, c in zip(text.split(accent, 1)[:1]
+                                              + [accent] + text.split(accent, 1)[1:],
+                                              ((255, 255, 255), ORANGE, (255, 255, 255)))
+                       if p])
+
+        # тень — отдельным слоем: полупрозрачный текст поверх подложки
+        # затирал бы её альфу и пробивал дыру до фона
+        sh = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        ds = ImageDraw.Draw(sh)
+        xs = x
+        for part, _ in parts:
+            ds.text((xs + 2, y0 - bb[1] + 18), part, font=f, fill=(8, 12, 30, int(150 * a)))
+            xs += ds.textlength(part, font=f)
+        im = Image.alpha_composite(im, sh)
+        d = ImageDraw.Draw(im)
+
+        for part, col in parts:
+            d.text((x, y0 - bb[1] + 16), part, font=f, fill=col + (A,))
+            x += d.textlength(part, font=f)
         im.save(f"{outdir}/{i:04d}.png")
     return N, f.size
 
 
 TITLES = [
+    # длительность подогнана под фразу в озвучке, чтобы плашки не наезжали
     ("t_hook",   "Я УДАЛИЛА CHATGPT ИЗ БРАУЗЕРА", 3.0, "CHATGPT"),
-    ("t_before", "ИИ ОБЪЯСНЯЕТ → ТЫ ДЕЛАЕШЬ",      3.4, "ТЫ ДЕЛАЕШЬ"),
-    ("t_after",  "ИИ ДЕЛАЕТ → ТЫ ПРОВЕРЯЕШЬ",      3.4, "ИИ ДЕЛАЕТ"),
-    ("t_brow",   "САМ РАБОТАЕТ В БРАУЗЕРЕ",        3.4, "САМ"),
-    ("t_plug",   "GOOGLE DRIVE → ТАБЛИЦА → CANVA", 3.4, None),
-    ("t_out",    "ТЫ СТАВИШЬ ЗАДАЧУ. АГЕНТ ДЕЛАЕТ.", 3.4, "АГЕНТ ДЕЛАЕТ."),
+    ("t_before", "ИИ ОБЪЯСНЯЕТ → ТЫ ДЕЛАЕШЬ",      3.6, "ТЫ ДЕЛАЕШЬ"),
+    ("t_after",  "ИИ ДЕЛАЕТ → ТЫ ПРОВЕРЯЕШЬ",      2.3, "ИИ ДЕЛАЕТ"),
+    ("t_brow",   "САМ РАБОТАЕТ В БРАУЗЕРЕ",        4.4, "САМ"),
+    ("t_plug",   "GOOGLE DRIVE → ТАБЛИЦА → CANVA", 3.6, None),
+    ("t_out",    "ТЫ СТАВИШЬ ЗАДАЧУ. АГЕНТ ДЕЛАЕТ.", 4.2, "АГЕНТ ДЕЛАЕТ."),
 ]
 for name, txt, dur, acc in TITLES:
     n, sz = build(name, txt, dur, acc)
