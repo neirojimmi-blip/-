@@ -1,33 +1,37 @@
 """Хук ролика про доступ к рабочей среде.
 
-Прописной шрифт — настоящий Pushkin, присланный пользователем. У него длинные
-росчерки (петля у «к» уходит высоко), поэтому строки ставятся по реальному
-боксу чернил, а не по кеглю: иначе вторая строка наезжает на первую.
-Читаемость держит лёгкая обводка stroke_width=2 и размытый тёмный ореол,
-собранный из самого текста: оранжевый по узорчатому платью иначе теряется.
-Многопроходное утолщение не используется, оно уже браковалось.
+Прописной шрифт — настоящий Pushkin. Фраза идёт целиком:
+«а тот, кто дал ему доступ к своей рабочей среде». Разбита на три строки,
+а не на две: в две кегль падал до 70 px и каллиграфия переставала читаться.
 
-Белых точек нет: пользователь просила убрать.
-Кадр не размывается и не затемняется целиком — героиню видно, полоса
-начинается ниже лица.
+Читаемость держат три вещи:
+  1. компактная тёмная плашка со скруглением 30 на уровне груди — как в скилле;
+     лицо она не задевает, оно занимает 265-566, плашка начинается ниже 780;
+  2. размытый тёмный ореол, собранный из самого текста, — оранжевый по
+     узорчатому платью иначе теряется даже на плашке;
+  3. лёгкая обводка stroke_width=3. Многопроходное утолщение офсетными
+     копиями не применяется, оно уже браковалось.
+
+Строки ставятся по реальному боксу чернил, а не по кеглю: у Pushkin высокие
+росчерки, петля у «к» уходит выше строки и наезжает на предыдущую.
+
+Белых точек нет, кадр не размывается и не затемняется целиком.
 """
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import os
 
 W, H = 1080, 1920
-FPS, DUR = 30, 3.70
+FPS, DUR = 30, 3.90
 N = int(DUR * FPS)
 F = "fonts/"
 ORANGE = (255, 117, 31)
 CHAR, GAP, START = 0.018, 0.10, 0.25
-FADE_A, FADE_B = 3.15, 3.62
+FADE_A, FADE_B = 3.34, 3.84
 
 CAPS = ["ВЫИГРЫВАЕТ НЕ ТОТ,", "КТО ОБЩАЕТСЯ С ИИ"]
-SCRIPT = ["а тот, кто дал", "ему доступ"]
+SCRIPT = ["а тот, кто дал ему", "доступ к своей", "рабочей среде"]
 TRACK = 7
-BAND_TOP, BAND_BOT = 800, 1400
-FEATHER = 100
-CAP_Y = 846
+BLOCK_TOP = 740                # ниже лица
 os.makedirs("n3/hook", exist_ok=True)
 
 _m = ImageDraw.Draw(Image.new("RGB", (8, 8)))
@@ -44,24 +48,8 @@ def fit(path, text, target, lo=30, hi=230):
     return ImageFont.truetype(path, lo)
 
 
-fcap = fit(F + "Montserrat-500.ttf", CAPS[0], int(W * 0.72))
-fscr = fit(F + "Pushkin.ttf", max(SCRIPT, key=len), int(W * 0.66))
-
-# полоса контраста с мягкими краями, ниже лица
-scrim = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-sp = scrim.load()
-PEAK = 214
-for y in range(BAND_TOP - FEATHER, min(H, BAND_BOT + FEATHER)):
-    if y < BAND_TOP:
-        a = int(PEAK * ((y - (BAND_TOP - FEATHER)) / FEATHER) ** 1.6)
-    elif y > BAND_BOT:
-        a = int(PEAK * (1 - (y - BAND_BOT) / FEATHER) ** 1.6)
-    else:
-        a = PEAK
-    if a <= 0:
-        continue
-    for x in range(W):
-        sp[x, y] = (10, 16, 40, a)
+fcap = fit(F + "Montserrat-500.ttf", CAPS[0], int(W * 0.70))
+fscr = fit(F + "Pushkin.ttf", max(SCRIPT, key=len), int(W * 0.76))
 
 
 def measure(s, f):
@@ -72,16 +60,32 @@ starts, t0 = [], START
 for s in CAPS + SCRIPT:
     starts.append(t0)
     t0 += len(s) * CHAR + GAP
+TYPED_AT = round(t0 - GAP, 2)
 
-LH_C = int(fcap.size * 1.38)
+LH_C = int(fcap.size * 1.24)
 
-# прописные строки ставим по боксу чернил: у Pushkin высокие росчерки
+# прописные — по боксу чернил, с запасом на росчерки
 boxes = [_m.textbbox((0, 0), s, font=fscr) for s in SCRIPT]
-SCR_TOP = CAP_Y + LH_C * len(CAPS) + 34
+SCR_TOP = BLOCK_TOP + LH_C * len(CAPS) + 34
 tops, y = [], SCR_TOP
 for b in boxes:
     tops.append(y - b[1])
-    y += (b[3] - b[1]) + 26
+    # нахлёста быть не должно: росчерки следующей строки въезжают
+    # в предыдущую и фраза перестаёт читаться
+    y += (b[3] - b[1]) + 10
+BLOCK_BOT = y - 10
+
+# компактная плашка по ширине самой длинной строки
+w_text = max([measure(s, fcap) for s in CAPS] + [b[2] - b[0] for b in boxes])
+PX, PY_T, PY_B = 54, 40, 44
+px0 = (W - w_text) / 2 - PX
+px1 = (W + w_text) / 2 + PX
+py0, py1 = BLOCK_TOP - PY_T, BLOCK_BOT + PY_B
+
+plate = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+ImageDraw.Draw(plate).rounded_rectangle([px0, py0, px1, py1], radius=30,
+                                        fill=(8, 12, 24, 212))
+plate = plate.filter(ImageFilter.GaussianBlur(3))     # мягкий край
 
 for i in range(N):
     t = i / FPS
@@ -91,10 +95,10 @@ for i in range(N):
         im.save(f"n3/hook/{i:04d}.png")
         continue
 
-    sc = scrim.copy()
+    pl = plate.copy()
     if a < 1:
-        sc.putalpha(sc.split()[3].point(lambda v: int(v * a)))
-    im = Image.alpha_composite(im, sc)
+        pl.putalpha(pl.split()[3].point(lambda v: int(v * a)))
+    im = Image.alpha_composite(im, pl)
     d = ImageDraw.Draw(im)
     A = int(255 * a)
 
@@ -104,13 +108,13 @@ for i in range(N):
             continue
         txt = s[:shown]
         x = W / 2 - measure(txt, fcap) / 2
-        y = CAP_Y + li * LH_C
+        y = BLOCK_TOP + li * LH_C
         for c in txt:
-            d.text((x + 2, y + 3), c, font=fcap, fill=(8, 14, 34, int(150 * a)))
+            d.text((x + 2, y + 3), c, font=fcap, fill=(6, 10, 26, int(170 * a)))
             d.text((x, y), c, font=fcap, fill=(255, 255, 255, A))
             x += d.textlength(c, font=fcap) + TRACK
 
-    # ореол: тот же текст жирно, размыт и подложен снизу
+    # ореол под прописными — из самого текста
     halo = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     hd = ImageDraw.Draw(halo)
     drawn = []
@@ -122,21 +126,21 @@ for i in range(N):
         b = d.textbbox((0, 0), txt, font=fscr)
         x = (W - (b[2] - b[0])) // 2 - b[0]
         drawn.append((li, s, txt, b, x, tops[li], shown))
-        hd.text((x, tops[li]), txt, font=fscr, fill=(6, 10, 26, int(230 * a)),
-                stroke_width=14, stroke_fill=(6, 10, 26, int(230 * a)))
+        hd.text((x, tops[li]), txt, font=fscr, fill=(4, 7, 20, int(238 * a)),
+                stroke_width=16, stroke_fill=(4, 7, 20, int(238 * a)))
     if drawn:
-        im = Image.alpha_composite(im, halo.filter(ImageFilter.GaussianBlur(11)))
+        im = Image.alpha_composite(im, halo.filter(ImageFilter.GaussianBlur(12)))
         d = ImageDraw.Draw(im)
 
     for li, s, txt, b, x, y, shown in drawn:
         d.text((x, y), txt, font=fscr, fill=ORANGE + (A,),
-               stroke_width=2, stroke_fill=ORANGE + (A,))
+               stroke_width=3, stroke_fill=ORANGE + (A,))
         if (shown < len(s) or (li == len(SCRIPT) - 1 and t < FADE_A)) \
                 and int(t * 2.4) % 2 == 0:
             cx = x + (b[2] - b[0]) + 16
-            d.rectangle([cx, y + b[1] + 12, cx + 7, y + b[3]], fill=ORANGE + (A,))
+            d.rectangle([cx, y + b[1] + 10, cx + 7, y + b[3]], fill=ORANGE + (A,))
 
     im.save(f"n3/hook/{i:04d}.png")
 
-print(f"кадров {N} ({DUR} с) | капс {fcap.size}px | Pushkin {fscr.size}px, обводка 2")
-print(f"прописные строки: {tops} | полоса {BAND_TOP}-{BAND_BOT}, точек нет")
+print(f"кадров {N} ({DUR} с) | капс {fcap.size}px | Pushkin {fscr.size}px, обводка 3")
+print(f"плашка {int(px0)}..{int(px1)} x {int(py0)}..{int(py1)} | текст допечатан к {TYPED_AT} с")
