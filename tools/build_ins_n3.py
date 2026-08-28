@@ -6,25 +6,32 @@
 
 Вставка занимает весь кадр: по правилу пользователя плашка либо
 полноэкранная, либо внизу — частично перекрывать лицо нельзя.
-Содержимое центруется и не опускается ниже 1450, там зона субтитров.
+Содержимое не опускается ниже 1450, там зона субтитров.
+
+Оформление: тёплое свечение из центра, виньетка, надзаголовок вразрядку,
+линия под заголовком прочерчивается, строки выезжают по очереди снизу.
+Статика рисуется один раз, по кадрам двигаются только плитки — иначе
+полноразмерный рендер каждого кадра считается слишком долго.
 
 Полупрозрачные фигуры — только отдельным слоем: ImageDraw с alpha-заливкой
-заменяет альфу, а не смешивает, и пробивает дыру в карточке.
+заменяет альфу, а не смешивает, и пробивает дыру в подложке.
 """
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import numpy as np
 import os
 
 W, H = 1080, 1920
 FPS = 30
 F = "fonts/"
 ORANGE, GREEN = (255, 117, 31), (63, 196, 140)
-CW = W - 80                 # ширина карточки
-CENTER_Y = 760              # центр карточки: ниже лица, выше субтитров
-PAD_TOP, PAD_BOT = 78, 70
-IN_T, OUT_T = 0.28, 0.25
+CENTER_Y = 780
+IN_T, OUT_T = 0.30, 0.26
+STAGGER = 0.09
 
+fe = ImageFont.truetype(F + "Montserrat-500.ttf", 34)
 fh = ImageFont.truetype(F + "Oswald-Bold.ttf", 84)
 fr = ImageFont.truetype(F + "Oswald-Bold.ttf", 46)
+fnum = ImageFont.truetype(F + "Oswald-Bold.ttf", 34)
 fc = ImageFont.truetype(F + "Oswald-Bold.ttf", 40)
 fn = ImageFont.truetype(F + "Montserrat-500.ttf", 32)
 
@@ -49,80 +56,110 @@ def wrap(text, font, maxw):
     return out
 
 
-def chip_rows(chips):
-    rows, cur, wsum = [], [], 0
-    for txt, col in chips:
-        b = _m.textbbox((0, 0), txt, font=fc)
-        cw = b[2] - b[0] + 54
-        if wsum + cw + 16 > CW - 80 and cur:
-            rows.append((cur, wsum))
-            cur, wsum = [], 0
-        cur.append((txt, col, cw))
-        wsum += cw + 16
-    if cur:
-        rows.append((cur, wsum))
-    return rows
+def background():
+    """Градиент + тёплое свечение из центра + виньетка."""
+    y = np.linspace(0, 1, H)[:, None]
+    base = np.stack([16 + (10 - 16) * y, 26 + (15 - 26) * y, 51 + (28 - 51) * y], -1)
+    base = np.repeat(base, W, axis=1)
+
+    yy, xx = np.mgrid[0:H, 0:W]
+    r = np.hypot((xx - W / 2) / (W * 0.95), (yy - CENTER_Y) / (H * 0.52))
+    glow = np.clip(1 - r, 0, 1) ** 2.4
+    base += glow[..., None] * np.array([46, 22, 6])
+
+    vign = np.clip(np.hypot((xx - W / 2) / (W * 0.72),
+                            (yy - H / 2) / (H * 0.72)) - 0.62, 0, 1) ** 1.6
+    base *= (1 - 0.55 * vign)[..., None]
+    return Image.fromarray(np.clip(base, 0, 255).astype("uint8")).convert("RGBA")
 
 
-def build(name, dur, head, key, rows=None, chips=None, note=None):
+BG = background()
+
+
+def tile_row(idx, txt, col, width):
+    """Плитка строки схемы: номер, подложка, рамка, текст."""
+    h = 96
+    im = Image.new("RGBA", (width, h), (0, 0, 0, 0))
+    ov = Image.new("RGBA", (width, h), (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    od.rounded_rectangle([0, 0, width - 1, h - 1], radius=22, fill=col + (44,))
+    od.rounded_rectangle([0, 0, width - 1, h - 1], radius=22, outline=col + (200,), width=3)
+    od.rounded_rectangle([18, 22, 70, 74], radius=14, fill=col + (70,))
+    im = Image.alpha_composite(im, ov)
+    d = ImageDraw.Draw(im)
+    n = str(idx)
+    b = d.textbbox((0, 0), n, font=fnum)
+    d.text((44 - (b[2] - b[0]) / 2 - b[0], 48 - (b[3] - b[1]) / 2 - b[1]), n,
+           font=fnum, fill=col)
+    b = d.textbbox((0, 0), txt, font=fr)
+    d.text((94 + (width - 94 - (b[2] - b[0])) / 2 - b[0], 48 - (b[3] - b[1]) / 2 - b[1]),
+           txt, font=fr, fill=(255, 255, 255))
+    return im
+
+
+def tile_chip(txt, col):
+    b = _m.textbbox((0, 0), txt, font=fc)
+    w, h = b[2] - b[0] + 58, 78
+    im = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    od = ImageDraw.Draw(ov)
+    od.rounded_rectangle([0, 0, w - 1, h - 1], radius=26, fill=col + (50,))
+    od.rounded_rectangle([0, 0, w - 1, h - 1], radius=26, outline=col + (180,), width=2)
+    im = Image.alpha_composite(im, ov)
+    d = ImageDraw.Draw(im)
+    d.text(((w - (b[2] - b[0])) / 2 - b[0], (h - (b[3] - b[1])) / 2 - b[1]), txt,
+           font=fc, fill=(255, 255, 255))
+    return im
+
+
+def track(d, text, font, y, fill, tr=8):
+    total = sum(d.textlength(c, font=font) + tr for c in text) - tr
+    x = (W - total) / 2
+    for c in text:
+        d.text((x, y), c, font=font, fill=fill)
+        x += d.textlength(c, font=font) + tr
+
+
+def build(name, dur, eyebrow, head, key, rows=None, chips=None, note=None):
     os.makedirs(name, exist_ok=True)
     n = int(dur * FPS)
+    head_lines = wrap(head, fh, W - 200)
+    note_lines = wrap(note, fn, W - 220) if note else []
 
-    head_lines = wrap(head, fh, CW - 120)
-    note_lines = wrap(note, fn, CW - 140) if note else []
-    crows = chip_rows(chips) if chips else []
-
-    h = PAD_TOP + 96 * len(head_lines) + 46
+    row_tiles, chip_lines = [], []
     if rows:
-        h += 96 * len(rows) + 66 * (len(rows) - 1)
-    if crows:
-        h += 92 * len(crows)
-    if note_lines:
-        h += 20 + 44 * len(note_lines)
-    h += PAD_BOT
+        rw = 700
+        row_tiles = [tile_row(i + 1, t, c, rw) for i, (t, c) in enumerate(rows)]
+    if chips:
+        tiles = [tile_chip(t, c) for t, c in chips]
+        cur, wsum = [], 0
+        for tl in tiles:
+            if wsum + tl.width + 16 > W - 150 and cur:
+                chip_lines.append((cur, wsum - 16))
+                cur, wsum = [], 0
+            cur.append(tl)
+            wsum += tl.width + 16
+        if cur:
+            chip_lines.append((cur, wsum - 16))
 
-    top = max(150, int(CENTER_Y - h / 2))
-    if top + h > 1400:
-        top = 1400 - h
+    body_h = 0
+    if row_tiles:
+        body_h = 96 * len(row_tiles) + 58 * (len(row_tiles) - 1)
+    if chip_lines:
+        body_h = sum(l[0][0].height + 18 for l in chip_lines) - 18
+    head_h = 46 + 22 + 96 * len(head_lines) + 30
+    note_h = (24 + 44 * len(note_lines)) if note_lines else 0
+    total_h = head_h + 34 + body_h + note_h
+    top = int(CENTER_Y - total_h / 2)
+    if top + total_h > 1420:
+        top = 1420 - total_h
+    top = max(150, top)
 
-    # фон на весь кадр: частичная плашка закрывала бы лицо
-    g = Image.new("RGB", (1, H))
-    for y in range(H):
-        f = y / H
-        g.putpixel((0, y), (int(16 + (10 - 16) * f), int(26 + (15 - 26) * f),
-                            int(51 + (28 - 51) * f)))
-    card = g.resize((W, H)).convert("RGBA")
-
-    # 1) полупрозрачные подложки — отдельным слоем
-    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    od = ImageDraw.Draw(ov)
-    y = top + PAD_TOP + 96 * len(head_lines) + 46
-    if rows:
-        for i, (txt, col) in enumerate(rows):
-            bw = max(_m.textlength(txt, font=fr) + 96, 520)
-            x0 = (W - bw) / 2
-            od.rounded_rectangle([x0, y, x0 + bw, y + 96], radius=22, fill=col + (46,))
-            od.rounded_rectangle([x0, y, x0 + bw, y + 96], radius=22,
-                                 outline=col + (190,), width=3)
-            y += 96
-            if i < len(rows) - 1:
-                od.polygon([(W / 2 - 20, y + 16), (W / 2 + 20, y + 16), (W / 2, y + 48)],
-                           fill=ORANGE + (205,))
-                y += 66
-    for row, wsum in crows:
-        x = (W - (wsum - 16)) / 2
-        for txt, col, cw in row:
-            od.rounded_rectangle([x, y, x + cw, y + 74], radius=24, fill=col + (52,))
-            od.rounded_rectangle([x, y, x + cw, y + 74], radius=24,
-                                 outline=col + (170,), width=2)
-            x += cw + 16
-        y += 92
-
-    card = Image.alpha_composite(card, ov)
-    d = ImageDraw.Draw(card)
-
-    # 2) текст поверх — непрозрачный
-    y = top + PAD_TOP
+    # статика: фон, надзаголовок, заголовок
+    static = BG.copy()
+    d = ImageDraw.Draw(static)
+    track(d, eyebrow, fe, top, (150, 168, 210))
+    y = top + 46 + 22
     for line in head_lines:
         seg = [(w, ORANGE if w in key.split() else (255, 255, 255),
                 d.textlength(w + " ", font=fh)) for w in line.split()]
@@ -131,62 +168,96 @@ def build(name, dur, head, key, rows=None, chips=None, note=None):
             d.text((x, y), word, font=fh, fill=col)
             x += wd
         y += 96
-    y += 46
-    if rows:
-        for i, (txt, col) in enumerate(rows):
-            b = d.textbbox((0, 0), txt, font=fr)
-            d.text(((W - (b[2] - b[0])) / 2 - b[0], y + 48 - (b[3] - b[1]) / 2 - b[1]),
-                   txt, font=fr, fill=(255, 255, 255))
-            y += 96 + (66 if i < len(rows) - 1 else 0)
-    for row, wsum in crows:
-        x = (W - (wsum - 16)) / 2
-        for txt, col, cw in row:
-            b = d.textbbox((0, 0), txt, font=fc)
-            d.text((x + (cw - (b[2] - b[0])) / 2 - b[0], y + 37 - (b[3] - b[1]) / 2 - b[1]),
-                   txt, font=fc, fill=(255, 255, 255))
-            x += cw + 16
-        y += 92
-    if note_lines:
-        y += 20
-        for line in note_lines:
-            b = d.textbbox((0, 0), line, font=fn)
-            d.text(((W - (b[2] - b[0])) / 2 - b[0], y - b[1]), line, font=fn,
-                   fill=(150, 168, 210))
-            y += 44
+    rule_y = y + 16
+    body_y = top + head_h + 34
 
     for i in range(n):
         t = i / FPS
+        fr_im = static.copy()
+        d = ImageDraw.Draw(fr_im)
+
+        # линия под заголовком прочерчивается
+        p = min(max((t - 0.16) / 0.34, 0), 1)
+        if p > 0:
+            half = 210 * ease_out(p)
+            d.rounded_rectangle([W / 2 - half, rule_y, W / 2 + half, rule_y + 5],
+                                radius=3, fill=ORANGE)
+
+        y = body_y
+        k = 0
+        for j, tl in enumerate(row_tiles):
+            a = min(max((t - (0.30 + j * STAGGER)) / 0.26, 0), 1)
+            if a > 0:
+                e = ease_out(a)
+                lay = tl.copy()
+                lay.putalpha(lay.split()[3].point(lambda v: int(v * e)))
+                fr_im.alpha_composite(lay, (int((W - tl.width) / 2),
+                                            int(y + 26 * (1 - e))))
+            y += 96
+            if j < len(row_tiles) - 1:
+                if a >= 1:
+                    d.polygon([(W / 2 - 18, y + 12), (W / 2 + 18, y + 12),
+                               (W / 2, y + 42)], fill=ORANGE)
+                y += 58
+            k += 1
+
+        for line, lw in chip_lines:
+            x = (W - lw) / 2
+            for tl in line:
+                a = min(max((t - (0.30 + k * STAGGER)) / 0.26, 0), 1)
+                if a > 0:
+                    e = ease_out(a)
+                    lay = tl.copy()
+                    lay.putalpha(lay.split()[3].point(lambda v: int(v * e)))
+                    fr_im.alpha_composite(lay, (int(x), int(y + 22 * (1 - e))))
+                x += tl.width + 16
+                k += 1
+            y += line[0].height + 18
+
+        if note_lines:
+            a = min(max((t - (0.30 + k * STAGGER)) / 0.3, 0), 1)
+            yy = y + 24
+            for ln in note_lines:
+                b = d.textbbox((0, 0), ln, font=fn)
+                d.text(((W - (b[2] - b[0])) / 2 - b[0], yy - b[1]), ln, font=fn,
+                       fill=tuple(int(c * a) + int(20 * (1 - a)) for c in (150, 168, 210)))
+                yy += 44
+
         if t < IN_T:
             dx = -W * (1 - ease_out(t / IN_T))
         elif t > dur - OUT_T:
             dx = -W * ease_out((t - (dur - OUT_T)) / OUT_T)
         else:
             dx = 0
-        f = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        f.paste(card, (int(dx), 0))
-        f.save(f"{name}/{i:04d}.png")
-    print(f"{name}: {n} кадров, {dur} с, содержимое {top}..{top+h}")
+        if dx:
+            shifted = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+            shifted.paste(fr_im, (int(dx), 0))
+            fr_im = shifted
+        fr_im.convert("RGBA").save(f"{name}/{i:04d}.png")
+    print(f"{name}: {n} кадров, {dur} с, блок {top}..{top+total_h}")
 
 
 CODES = ["ИНСТРУКЦИЯ", "КУРС", "МОНТАЖ", "АГЕНТ", "КАЛЕНДАРЬ", "СКИЛЛ",
          "АНАЛИЗ", "ПОРТРЕТ", "СОВЕТ", "ДНЕВНИК"]
 
-build("n3/ins_conn", 3.70, "ДОСТУП К РАБОЧЕЙ СРЕДЕ", "ДОСТУП",
+build("n3/ins_conn", 3.70, "КАК ЭТО УСТРОЕНО", "ДОСТУП К РАБОЧЕЙ СРЕДЕ", "ДОСТУП",
       rows=[("ВАША ЯЗЫКОВАЯ МОДЕЛЬ", ORANGE),
             ("CHATPLACE", GREEN),
             ("ДИРЕКТ И КОММЕНТАРИИ", ORANGE)])
 
-build("n3/ins_code", 3.30, "КОДОВОЕ СЛОВО ПОД РИЛС", "КОДОВОЕ СЛОВО",
+build("n3/ins_code", 3.30, "ЖИВЫЕ ВОРОНКИ АККАУНТА", "КОДОВОЕ СЛОВО ПОД РИЛС",
+      "КОДОВОЕ СЛОВО",
       chips=[(c, ORANGE if i % 2 == 0 else GREEN) for i, c in enumerate(CODES)],
-      note="20 активных автоворонок аккаунта @xeniia_neuro")
+      note="20 активных автоворонок @xeniia_neuro")
 
-build("n3/ins_funnel", 3.70, "ВЕДЁТ ДО ЗАЯВКИ САМ", "ЗАЯВКИ",
+build("n3/ins_funnel", 3.70, "ЧТО ДЕЛАЕТ БОТ", "ВЕДЁТ ДО ЗАЯВКИ САМ", "ЗАЯВКИ",
       rows=[("ОТВЕТ НА КОДОВОЕ СЛОВО", GREEN),
             ("МАТЕРИАЛЫ И ИНСТРУКЦИИ", ORANGE),
             ("НАПОМИНАНИЯ", GREEN),
             ("ЗАЯВКА", ORANGE)])
 
-build("n3/ins_auto", 4.50, "ВОРОНКУ МОДЕЛЬ ПРОПИШЕТ САМА", "САМА",
+build("n3/ins_auto", 4.50, "И ЭТО ТОЖЕ НЕ ВРУЧНУЮ", "ВОРОНКУ МОДЕЛЬ ПРОПИШЕТ САМА",
+      "САМА",
       rows=[("СЦЕНАРИЙ ШАГОВ", ORANGE),
             ("ТЕКСТЫ СООБЩЕНИЙ", GREEN),
             ("КНОПКИ И УСЛОВИЯ", ORANGE)])
