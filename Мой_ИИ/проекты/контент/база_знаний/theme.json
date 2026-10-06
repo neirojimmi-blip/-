@@ -1,0 +1,28 @@
+{
+  "name": "ii-business",
+  "colors": {
+    "bg": "#2E4078",
+    "cardBg": "#FFFFFF",
+    "cardBg2": "#F2F5FB",
+    "milk": "#FFFFFF",
+    "accent": "#FF751F",
+    "accentDark": "#E05E0A",
+    "text": "#2E4078",
+    "textSoft": "#5A6A9A",
+    "cream": "#FFFFFF",
+    "orange": "#FF751F",
+    "line": "#46589E",
+    "panel": "#3A4C8E"
+  },
+  "fonts": { "display": "Bebas Neue Cyrillic", "mono": "Montserrat", "body": "Montserrat", "script": "Pushkin" },
+  "avatar": "avatar-xeniia.png",
+  "radius": 24,
+  "cardShadow": "0 20px 50px rgba(23, 33, 64, 0.35)",
+  "cardBorder": "2px solid rgba(46, 64, 120, 0.12)",
+  "motion": { "spring": { "damping": 14, "mass": 0.9 }, "glow": false },
+  "lesson": {
+    "badge": "УРОК",
+    "decor": { "orbit": false, "stars": false, "plus": true, "arrow": false, "frame": true, "grain": false },
+    "grungeTexture": null
+  }
+}
