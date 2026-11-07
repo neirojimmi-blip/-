@@ -371,26 +371,39 @@ def render_cta(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
     fb = F_bebas(96)
-    yy = 180
+    yy = 150
     for line in s["title"]:
         d.text((PAD, yy), line, font=fb, fill=WHITE)
-        yy += 100
-    body = F_m(32)
-    if s.get("body"):
-        lines = wrap(d, s["body"], body, W - PAD * 2)
-        yy = draw_lines(d, lines, body, WHITE, PAD, yy + 24, 44) + 36
-    words = s.get("words") or []
-    if words:
+        yy += 96
+    expl_f = F_m(28)
+    for line in s.get("lines") or []:
+        elines = wrap(d, line, expl_f, W - PAD * 2)
+        yy = draw_lines(d, elines, expl_f, WHITE, PAD, yy + 8, 40)
+    yy += 24
+    if s.get("qr"):
+        qr = Image.open(resolve_image(s["qr"], folder)).convert("RGBA")
+        side = 340
+        qr = qr.resize((side, side), Image.Resampling.NEAREST)
+        card = 380
+        cx = (W - card) // 2
+        d.rounded_rectangle((cx, yy, cx + card, yy + card), 24, fill=WHITE)
+        pad_q = (card - side) // 2
+        im.paste(qr, (cx + pad_q, yy + pad_q), qr)
+        yy += card + 28
+    if s.get("link"):
+        lf = F_sb(36)
+        tw = d.textlength(s["link"], font=lf)
+        box_h = 92
+        d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 18, fill=ORANGE)
+        d.text(((W - tw) / 2, yy + 26), s["link"], font=lf, fill=WHITE)
+        yy += box_h + 20
+    elif s.get("words"):
         wf = F_bebas(64)
-        for word in words:
+        for word in s["words"]:
             d.rounded_rectangle((PAD, yy, W - PAD, yy + 108), 18, fill=ORANGE)
             tw = d.textlength(word, font=wf)
             d.text(((W - tw) / 2, yy + 22), word, font=wf, fill=WHITE)
             yy += 128
-        expl_f = F_m(28)
-        for line in s.get("lines") or []:
-            elines = wrap(d, line, expl_f, W - PAD * 2)
-            yy = draw_lines(d, elines, expl_f, (255, 255, 255, 220), PAD, yy, 40) + 8
     elif s.get("action"):
         af = F_sb(30)
         action_lines = wrap(d, s["action"], af, W - PAD * 2 - 64)
@@ -399,11 +412,11 @@ def render_cta(s, n, total, folder: Path):
         draw_lines(d, action_lines, af, WHITE, PAD + 32, yy + 32, 44)
         yy += box_h + 28
     if s.get("note"):
-        nf = F_m(26)
+        nf = F_m(24)
         nlines = wrap(d, s["note"], nf, W - PAD * 2)
-        draw_lines(d, nlines, nf, (255, 255, 255, 210), PAD, yy + 12, 38)
-    cf = F_b(28)
-    draw_tracked(d, s["contact"], cf, ORANGE, PAD, H - 120, 2)
+        draw_lines(d, nlines, nf, (255, 255, 255, 200), PAD, min(yy + 8, H - 160), 34)
+    cf = F_b(30)
+    draw_tracked(d, s["contact"], cf, ORANGE, PAD, H - 110, 2)
     return im
 
 
