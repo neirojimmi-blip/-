@@ -237,9 +237,10 @@ def render_bigstat(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
     d.text((PAD, 180), s["title"], font=F_bebas(72), fill=WHITE)
-    vf = F_bebas(220)
-    tw = d.textlength(s["value"], font=vf)
-    d.text(((W - tw) / 2, 400), s["value"], font=vf, fill=ORANGE)
+    val = s["value"]
+    vf = F_bebas(200 if len(val) <= 4 else 140)
+    tw = d.textlength(val, font=vf)
+    d.text(((W - tw) / 2, 390), val, font=vf, fill=ORANGE)
     body = F_m(34)
     inner = W - PAD * 2 - 72
     lines = wrap(d, s["body"], body, inner)
@@ -260,7 +261,11 @@ def render_checks(s, n, total, folder: Path):
         check(d, PAD, yy + 6, 18)
         lines = wrap(d, item, bf, 820)
         h = draw_lines(d, lines, bf, NAVY, PAD + 58, yy, 44)
-        yy = max(h, yy + 44) + 28
+        yy = max(h, yy + 44) + 36
+    if s.get("note"):
+        nf = F_m(26)
+        nlines = wrap(d, s["note"], nf, W - PAD * 2)
+        draw_lines(d, nlines, nf, MUTED, PAD, min(yy + 24, H - 40 - 38 * len(nlines)), 38)
     return im
 
 
@@ -333,29 +338,72 @@ def render_apply(s, n, total, folder: Path):
     return im
 
 
+def render_offers(s, n, total, folder: Path):
+    im, d = canvas(False)
+    chrome(d, s["kicker"], n, total, False)
+    d.text((PAD, 140), s["title"], font=F_bebas(80), fill=NAVY)
+    if s.get("body"):
+        bl = wrap(d, s["body"], F_m(30), W - PAD * 2)
+        draw_lines(d, bl, F_m(30), MUTED, PAD, 250, 42)
+        yy = 250 + 42 * len(bl) + 28
+    else:
+        yy = 280
+    bf = F_m(28)
+    tf = F_bebas(48)
+    badge_f = F_b(18)
+    gap = 28
+    remaining = H - 80 - yy
+    box_h = (remaining - gap * (len(s["offers"]) - 1)) // max(1, len(s["offers"]))
+    box_h = max(220, box_h)
+    for off in s["offers"]:
+        d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 20, fill=GRAY)
+        bw = tracked_width(d, off["badge"].upper(), badge_f, 3) + 28
+        d.rounded_rectangle((PAD + 32, yy + 28, PAD + 32 + bw, yy + 64), 12, fill=ORANGE)
+        draw_tracked(d, off["badge"].upper(), badge_f, WHITE, PAD + 46, yy + 36, 3)
+        d.text((PAD + 32, yy + 80), off["title"], font=tf, fill=NAVY)
+        lines = wrap(d, off["text"], bf, W - PAD * 2 - 64)
+        draw_lines(d, lines, bf, MUTED, PAD + 32, yy + 148, 40)
+        yy += box_h + gap
+    return im
+
+
 def render_cta(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
-    fb = F_bebas(110)
-    yy = 220
+    fb = F_bebas(96)
+    yy = 180
     for line in s["title"]:
         d.text((PAD, yy), line, font=fb, fill=WHITE)
-        yy += 112
-    body = F_m(34)
-    lines = wrap(d, s["body"], body, W - PAD * 2)
-    yy = draw_lines(d, lines, body, WHITE, PAD, yy + 40, 48) + 48
-    # плашка действия
-    af = F_sb(30)
-    action_lines = wrap(d, s["action"], af, W - PAD * 2 - 64)
-    box_h = 48 + 44 * len(action_lines) + 20
-    d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 16, fill=ORANGE)
-    draw_lines(d, action_lines, af, WHITE, PAD + 32, yy + 32, 44)
+        yy += 100
+    body = F_m(32)
+    if s.get("body"):
+        lines = wrap(d, s["body"], body, W - PAD * 2)
+        yy = draw_lines(d, lines, body, WHITE, PAD, yy + 24, 44) + 36
+    words = s.get("words") or []
+    if words:
+        wf = F_bebas(64)
+        for word in words:
+            d.rounded_rectangle((PAD, yy, W - PAD, yy + 108), 18, fill=ORANGE)
+            tw = d.textlength(word, font=wf)
+            d.text(((W - tw) / 2, yy + 22), word, font=wf, fill=WHITE)
+            yy += 128
+        expl_f = F_m(28)
+        for line in s.get("lines") or []:
+            elines = wrap(d, line, expl_f, W - PAD * 2)
+            yy = draw_lines(d, elines, expl_f, (255, 255, 255, 220), PAD, yy, 40) + 8
+    elif s.get("action"):
+        af = F_sb(30)
+        action_lines = wrap(d, s["action"], af, W - PAD * 2 - 64)
+        box_h = 48 + 44 * len(action_lines) + 20
+        d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 16, fill=ORANGE)
+        draw_lines(d, action_lines, af, WHITE, PAD + 32, yy + 32, 44)
+        yy += box_h + 28
     if s.get("note"):
         nf = F_m(26)
         nlines = wrap(d, s["note"], nf, W - PAD * 2)
-        draw_lines(d, nlines, nf, (255, 255, 255, 210), PAD, yy + box_h + 28, 38)
+        draw_lines(d, nlines, nf, (255, 255, 255, 210), PAD, yy + 12, 38)
     cf = F_b(28)
-    draw_tracked(d, s["contact"], cf, ORANGE, PAD, H - 140, 2)
+    draw_tracked(d, s["contact"], cf, ORANGE, PAD, H - 120, 2)
     return im
 
 
@@ -370,6 +418,7 @@ RENDERERS = {
     "duties": render_duties,
     "results": render_results,
     "apply": render_apply,
+    "offers": render_offers,
     "cta": render_cta,
 }
 
@@ -402,6 +451,7 @@ def copy_md(data: dict) -> str:
         data["caption"],
         "",
         "Как применить: пост в @xeniia_neuro. Первый слайд — обложка. "
+        "Воронка: кодовое слово в комментарии → бот в директ. "
         "На обложку можно поставить настоящее фото Ксении в оранжевый круг; "
         "сгенерированное лицо не подставлять.",
         "",
