@@ -165,15 +165,15 @@ def render_stages(s, n, total):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
     d.text((PAD, 150), s["title"], font=F_bebas(88), fill=WHITE)
-    yy = 280
-    nf = F_bebas(48)
-    bf = F_m(32)
+    yy = 255
+    nf = F_bebas(44)
+    bf = F_m(30)
     for i, item in enumerate(s["items"], 1):
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + 140), 16, fill=MUTED)
-        d.text((PAD + 28, yy + 38), f"{i:02d}", font=nf, fill=ORANGE)
+        d.rounded_rectangle((PAD, yy, W - PAD, yy + 132), 16, fill=MUTED)
+        d.text((PAD + 28, yy + 34), f"{i:02d}", font=nf, fill=ORANGE)
         lines = wrap(d, item, bf, 740)
-        draw_lines(d, lines, bf, WHITE, PAD + 140, yy + 44, 42)
-        yy += 156
+        draw_lines(d, lines, bf, WHITE, PAD + 140, yy + 36, 40)
+        yy += 148
     return im
 
 
@@ -181,14 +181,14 @@ def render_duties(s, n, total):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
     d.text((PAD, 150), s["title"], font=F_bebas(88), fill=NAVY)
-    yy = 280
-    bf = F_sb(32)
+    yy = 255
+    bf = F_sb(30)
     for i, item in enumerate(s["items"], 1):
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + 120), 16, fill=GRAY)
-        d.text((PAD + 28, yy + 34), f"{i:02d}", font=F_bebas(44), fill=ORANGE)
+        d.rounded_rectangle((PAD, yy, W - PAD, yy + 108), 16, fill=GRAY)
+        d.text((PAD + 28, yy + 28), f"{i:02d}", font=F_bebas(42), fill=ORANGE)
         lines = wrap(d, item, bf, 740)
-        draw_lines(d, lines, bf, NAVY, PAD + 140, yy + 38, 42)
-        yy += 136
+        draw_lines(d, lines, bf, NAVY, PAD + 140, yy + 32, 40)
+        yy += 122
     note_f = F_m(26)
     lines = wrap(d, s["note"], note_f, W - PAD * 2)
     draw_lines(d, lines, note_f, MUTED, PAD, yy + 16, 38)
@@ -199,15 +199,15 @@ def render_results(s, n, total):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
     d.text((PAD, 150), s["title"], font=F_bebas(88), fill=WHITE)
-    yy = 280
-    lf = F_bebas(36)
-    bf = F_m(30)
+    yy = 250
+    lf = F_bebas(32)
+    bf = F_m(28)
     for row in s["items"]:
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + 170), 16, fill=MUTED)
-        d.text((PAD + 32, yy + 28), row["label"].upper(), font=lf, fill=ORANGE)
+        d.rounded_rectangle((PAD, yy, W - PAD, yy + 155), 16, fill=MUTED)
+        d.text((PAD + 32, yy + 22), row["label"].upper(), font=lf, fill=ORANGE)
         lines = wrap(d, row["text"], bf, 840)
-        draw_lines(d, lines, bf, WHITE, PAD + 32, yy + 84, 40)
-        yy += 186
+        draw_lines(d, lines, bf, WHITE, PAD + 32, yy + 72, 38)
+        yy += 168
     return im
 
 
@@ -247,6 +247,10 @@ def render_cta(s, n, total):
     box_h = 48 + 44 * len(action_lines) + 20
     d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 16, fill=ORANGE)
     draw_lines(d, action_lines, af, WHITE, PAD + 32, yy + 32, 44)
+    if s.get("note"):
+        nf = F_m(26)
+        nlines = wrap(d, s["note"], nf, W - PAD * 2)
+        draw_lines(d, nlines, nf, (255, 255, 255, 210), PAD, yy + box_h + 28, 38)
     cf = F_b(28)
     draw_tracked(d, s["contact"], cf, ORANGE, PAD, H - 140, 2)
     return im
@@ -294,7 +298,10 @@ def copy_md(data: dict) -> str:
         "На обложку можно поставить настоящее фото Ксении в оранжевый круг; "
         "сгенерированное лицо не подставлять.",
         "",
-        "Цифр экономии и сроков в слайдах нет — в брифе их не подтверждали.",
+        "Цифр экономии и сроков нет. 14 замечаний из демо-гайда не переносили: "
+        "в источнике сказано, что они не перепроверены.",
+        "",
+        "Источник текстов: практический гайд «Чертёж в Claude · DXF + MCP + нормы + AutoCAD», ноябрь 2026.",
         "",
     ]
     return "\n".join(lines)
