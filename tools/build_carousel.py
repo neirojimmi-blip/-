@@ -195,6 +195,29 @@ def render_plan(s, n, total, folder: Path):
     return im
 
 
+def render_page(s, n, total, folder: Path):
+    """Страница гайда как слайд Instagram 1080×1350. Чертежи не перерисовываем."""
+    src = Image.open(resolve_image(s["image"], folder)).convert("RGBA")
+    if src.size != (W, H):
+        bg = NAVY if s.get("blue") else WHITE
+        im = Image.new("RGBA", (W, H), bg)
+        scale = min(W / src.width, H / src.height)
+        nw, nh = max(1, int(src.width * scale)), max(1, int(src.height * scale))
+        src = src.resize((nw, nh), Image.Resampling.LANCZOS)
+        im.paste(src, ((W - nw) // 2, (H - nh) // 2), src)
+    else:
+        im = src
+    d = ImageDraw.Draw(im)
+    nf = F_b(20)
+    num = f"{n:02d} / {total:02d}"
+    nw = tracked_width(d, num, nf, 2)
+    bx0, by0 = W - PAD - nw - 18, 36
+    bx1, by1 = W - PAD + 10, 78
+    d.rounded_rectangle((bx0, by0, bx1, by1), 12, fill=WHITE)
+    draw_tracked(d, num, nf, ORANGE, W - PAD - nw, 44, 2)
+    return im
+
+
 def render_numbered(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
@@ -338,6 +361,7 @@ def render_cta(s, n, total, folder: Path):
 
 RENDERERS = {
     "cover": render_cover,
+    "page": render_page,
     "plan": render_plan,
     "numbered": render_numbered,
     "bigstat": render_bigstat,
@@ -368,6 +392,8 @@ def copy_md(data: dict) -> str:
         title = s.get("title")
         if isinstance(title, list):
             title = " ".join(title)
+        if not title:
+            title = s.get("image", s["type"])
         lines.append(f"| {i} | {s['type']} | {title} |")
     lines += [
         "",
