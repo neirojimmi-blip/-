@@ -95,27 +95,107 @@ def check(draw, x, y, r=18):
     draw.line(pts, fill=WHITE, width=5, joint="curve")
 
 
-def render_cover(s, n, total):
+def resolve_image(path: str, folder: Path) -> Path:
+    p = Path(path)
+    if p.is_absolute():
+        return p
+    cand = folder / p
+    if cand.exists():
+        return cand
+    return ROOT / p
+
+
+def paste_plan(im: Image.Image, path: Path, box, radius=24, pad=22, bg=WHITE):
+    """Исходный чертёж на карточке. Не перерисовываем — только масштаб."""
+    photo = Image.open(path).convert("RGBA")
+    x0, y0, x1, y1 = (int(v) for v in box)
+    w, h = x1 - x0, y1 - y0
+    if w < 40 or h < 40:
+        return
+    card = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(card).rounded_rectangle((0, 0, w - 1, h - 1), radius, fill=bg)
+    inner_w, inner_h = max(1, w - pad * 2), max(1, h - pad * 2)
+    scale = min(inner_w / photo.width, inner_h / photo.height)
+    nw = max(1, int(photo.width * scale))
+    nh = max(1, int(photo.height * scale))
+    photo = photo.resize((nw, nh), Image.Resampling.LANCZOS)
+    card.paste(photo, ((w - nw) // 2, (h - nh) // 2), photo)
+    im.alpha_composite(card, (x0, y0))
+
+
+def render_cover(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
-    fb = F_bebas(118)
-    yy = 200
+    fb = F_bebas(110)
+    yy = 170
     for line in s["title"]:
         d.text((PAD, yy), line, font=fb, fill=WHITE)
-        yy += 118
-    # круг справа, ниже заголовка — текст не пересекает
+        yy += 108
+    body = F_m(32)
+    if s.get("image"):
+        lines = wrap(d, s["body"], body, W - PAD * 2)
+        body_h = 44 * len(lines)
+        paste_plan(
+            im,
+            resolve_image(s["image"], folder),
+            (PAD, yy + 12, W - PAD, H - 86 - body_h),
+            radius=24,
+            pad=28,
+            bg=WHITE,
+        )
+        draw_lines(d, lines, body, WHITE, PAD, H - 70 - body_h, 44)
+        return im
     cx, cy, r = 800, 820, 230
     d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=ORANGE)
     cf = F_bebas(88)
     tw = d.textlength(s["circle"], font=cf)
     d.text((cx - tw / 2, cy - 48), s["circle"], font=cf, fill=WHITE)
-    body = F_m(34)
     lines = wrap(d, s["body"], body, 520)
     draw_lines(d, lines, body, WHITE, PAD, H - 90 - 48 * len(lines), 48)
     return im
 
 
-def render_numbered(s, n, total):
+def render_plan(s, n, total, folder: Path):
+    blue = bool(s.get("blue"))
+    im, d = canvas(blue)
+    chrome(d, s["kicker"], n, total, blue)
+    title_fill = WHITE if blue else NAVY
+    title = s["title"]
+    d.text((PAD, 140), title, font=F_bebas(72 if len(title) > 14 else 88), fill=title_fill)
+    bf = F_m(30)
+    nf = F_m(24)
+    body_lines = wrap(d, s["body"], bf, W - PAD * 2) if s.get("body") else []
+    note_lines = wrap(d, s["note"], nf, W - PAD * 2) if s.get("note") else []
+    stats = s.get("stats") or []
+    stats_h = 88 if stats else 0
+    footer = 20 + 42 * len(body_lines) + 34 * len(note_lines) + stats_h
+    top = 250
+    bottom = H - 56 - footer
+    paste_plan(
+        im,
+        resolve_image(s["image"], folder),
+        (PAD, top, W - PAD, bottom),
+        radius=24,
+        pad=24,
+        bg=WHITE if blue else GRAY,
+    )
+    yy = bottom + 18
+    if stats:
+        col_w = (W - PAD * 2) / len(stats)
+        vf, lf = F_bebas(52), F_b(22)
+        for i, row in enumerate(stats):
+            cx = PAD + col_w * i
+            d.text((cx, yy), str(row["value"]), font=vf, fill=ORANGE)
+            d.text((cx, yy + 52), row["label"].upper(), font=lf, fill=MUTED if not blue else (255, 255, 255, 200))
+        yy += stats_h
+    if body_lines:
+        yy = draw_lines(d, body_lines, bf, title_fill, PAD, yy, 42)
+    if note_lines:
+        draw_lines(d, note_lines, nf, (255, 255, 255, 200) if blue else MUTED, PAD, yy + 8, 34)
+    return im
+
+
+def render_numbered(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
     d.text((PAD, 160), s["title"], font=F_bebas(88), fill=NAVY)
@@ -130,7 +210,7 @@ def render_numbered(s, n, total):
     return im
 
 
-def render_bigstat(s, n, total):
+def render_bigstat(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
     d.text((PAD, 180), s["title"], font=F_bebas(72), fill=WHITE)
@@ -147,7 +227,7 @@ def render_bigstat(s, n, total):
     return im
 
 
-def render_checks(s, n, total):
+def render_checks(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
     d.text((PAD, 150), s["title"], font=F_bebas(88), fill=NAVY)
@@ -161,7 +241,7 @@ def render_checks(s, n, total):
     return im
 
 
-def render_stages(s, n, total):
+def render_stages(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
     d.text((PAD, 150), s["title"], font=F_bebas(88), fill=WHITE)
@@ -177,7 +257,7 @@ def render_stages(s, n, total):
     return im
 
 
-def render_duties(s, n, total):
+def render_duties(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
     d.text((PAD, 150), s["title"], font=F_bebas(88), fill=NAVY)
@@ -195,7 +275,7 @@ def render_duties(s, n, total):
     return im
 
 
-def render_results(s, n, total):
+def render_results(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
     d.text((PAD, 150), s["title"], font=F_bebas(88), fill=WHITE)
@@ -211,7 +291,7 @@ def render_results(s, n, total):
     return im
 
 
-def render_apply(s, n, total):
+def render_apply(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
     d.text((PAD, 150), s["title"], font=F_bebas(88), fill=NAVY)
@@ -230,7 +310,7 @@ def render_apply(s, n, total):
     return im
 
 
-def render_cta(s, n, total):
+def render_cta(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
     fb = F_bebas(110)
@@ -258,6 +338,7 @@ def render_cta(s, n, total):
 
 RENDERERS = {
     "cover": render_cover,
+    "plan": render_plan,
     "numbered": render_numbered,
     "bigstat": render_bigstat,
     "checks": render_checks,
@@ -269,11 +350,11 @@ RENDERERS = {
 }
 
 
-def render_one(slide: dict, n: int, total: int) -> Image.Image:
+def render_one(slide: dict, n: int, total: int, folder: Path) -> Image.Image:
     fn = RENDERERS.get(slide["type"])
     if not fn:
         raise ValueError(f"unknown slide type {slide['type']}")
-    return fn(slide, n, total).convert("RGB")
+    return fn(slide, n, total, folder).convert("RGB")
 
 
 def copy_md(data: dict) -> str:
@@ -301,7 +382,10 @@ def copy_md(data: dict) -> str:
         "Цифр экономии и сроков нет. 14 замечаний из демо-гайда не переносили: "
         "в источнике сказано, что они не перепроверены.",
         "",
-        "Источник текстов: практический гайд «Чертёж в Claude · DXF + MCP + нормы + AutoCAD», ноябрь 2026.",
+        "Чертежи на слайдах — исходники из гайда (план квартиры и схема ЭОМ), без перерисовки. "
+        "Числа 8 / 8 / 10 / 5 / 31 относятся только к этой схеме референса.",
+        "",
+        "Источник: практический гайд «Чертёж в Claude · DXF + MCP + нормы + AutoCAD», ноябрь 2026.",
         "",
     ]
     return "\n".join(lines)
@@ -348,7 +432,7 @@ def main() -> int:
     pngs = []
     for i, slide in enumerate(slides, 1):
         dest = folder / f"{i:02d}.png"
-        render_one(slide, i, total).save(dest, "PNG", optimize=True)
+        render_one(slide, i, total, folder).save(dest, "PNG", optimize=True)
         pngs.append(dest)
         print(f"wrote {dest.relative_to(ROOT)}")
     contact_sheet(pngs, folder / "preview.png")

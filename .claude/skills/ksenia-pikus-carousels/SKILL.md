@@ -95,5 +95,7 @@ python3 tools/build_carousel.py carousels/<папка>
 нет интерфейса Instagram, нет выдуманных цифр, исходные чертежи не подменены.
 
 Инженерная тема «чертёж в Claude»: тексты брать из
-`references/chertezh-claude-mcp.pdf` (гайд, ноябрь 2026). Не переносить
+`references/chertezh-claude-mcp.pdf` (гайд, ноябрь 2026). Чертежи класть
+на слайды как исходники: `references/plan-source.png` (стр. 04, план
+квартиры) и `references/plan-eom.png` (стр. 12, схема ЭОМ). Не переносить
 неперепроверенные «14 замечаний». Не рисовать «похожие» планы.
