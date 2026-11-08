@@ -96,8 +96,8 @@ def canvas(blue: bool) -> tuple[Image.Image, ImageDraw.ImageDraw]:
 
 
 def chrome(draw, kicker: str, n: int, total: int, blue: bool):
-    kf = F_b(18)
-    nf = F_b(20)
+    kf = F_b(22)
+    nf = F_b(24)
     if STYLE == "cad":
         draw_tracked(draw, kicker.upper(), kf, CAD_BLUE, PAD, 56, 3)
         num = f"{n:02d} / {total:02d}"
@@ -195,15 +195,15 @@ def render_hook(s, n, total, folder: Path):
 def render_cover(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
-    fb = F_bebas(110)
-    yy = 170
+    fb = F_bebas(148)
+    yy = 150
     for line in s["title"]:
         d.text((PAD, yy), line, font=fb, fill=WHITE)
-        yy += 108
-    body = F_m(32)
+        yy += 142
+    body = F_m(42)
     if s.get("image"):
         lines = wrap(d, s["body"], body, W - PAD * 2)
-        body_h = 44 * len(lines)
+        body_h = 52 * len(lines)
         paste_plan(
             im,
             resolve_image(s["image"], folder),
@@ -212,7 +212,7 @@ def render_cover(s, n, total, folder: Path):
             pad=28,
             bg=WHITE,
         )
-        draw_lines(d, lines, body, WHITE, PAD, H - 70 - body_h, 44)
+        draw_lines(d, lines, body, WHITE, PAD, H - 78 - body_h, 52)
         return im
     cx, cy, r = 800, 820, 230
     d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=ORANGE)
@@ -230,15 +230,15 @@ def render_plan(s, n, total, folder: Path):
     chrome(d, s["kicker"], n, total, blue)
     title_fill = INK if STYLE == "cad" else (WHITE if blue else NAVY)
     title = s["title"]
-    d.text((PAD, 140), title, font=F_b(52) if STYLE == "cad" else F_bebas(72 if len(title) > 14 else 88), fill=title_fill)
-    bf = F_m(30)
-    nf = F_m(24)
+    d.text((PAD, 130), title, font=F_b(52) if STYLE == "cad" else F_bebas(120 if len(title) > 14 else 132), fill=title_fill)
+    bf = F_m(38)
+    nf = F_m(28)
     body_lines = wrap(d, s["body"], bf, W - PAD * 2) if s.get("body") else []
     note_lines = wrap(d, s["note"], nf, W - PAD * 2) if s.get("note") else []
     stats = s.get("stats") or []
-    stats_h = 88 if stats else 0
-    footer = 20 + 42 * len(body_lines) + 34 * len(note_lines) + stats_h
-    top = 250
+    stats_h = 110 if stats else 0
+    footer = 24 + 48 * len(body_lines) + 36 * len(note_lines) + stats_h
+    top = 280
     bottom = H - 56 - footer
     paste_plan(
         im,
@@ -251,14 +251,15 @@ def render_plan(s, n, total, folder: Path):
     yy = bottom + 18
     if stats:
         col_w = (W - PAD * 2) / len(stats)
-        vf, lf = F_bebas(52), F_b(22)
+        vf, lf = F_bebas(64), F_b(24)
         for i, row in enumerate(stats):
             cx = PAD + col_w * i
+            lab_fill = WHITE if (STYLE != "cad" and blue) else MUTED
             d.text((cx, yy), str(row["value"]), font=vf, fill=ORANGE)
-            d.text((cx, yy + 52), row["label"].upper(), font=lf, fill=MUTED)
+            d.text((cx, yy + 68), row["label"].upper(), font=lf, fill=lab_fill)
         yy += stats_h
     if body_lines:
-        yy = draw_lines(d, body_lines, bf, title_fill, PAD, yy, 42)
+        yy = draw_lines(d, body_lines, bf, title_fill, PAD, yy, 48)
     if note_lines:
         draw_lines(d, note_lines, nf, MUTED, PAD, yy + 8, 34)
     return im
@@ -290,15 +291,17 @@ def render_page(s, n, total, folder: Path):
 def render_numbered(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 160), s["title"], font=F_bebas(88) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else NAVY)
-    yy = 300
-    nf = F_bebas(56)
-    bf = F_m(34)
+    d.text((PAD, 130), s["title"], font=F_bebas(136) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else NAVY)
+    yy = 320
+    nf = F_bebas(84)
+    bf = F_m(48)
+    n_items = max(1, len(s["items"]))
+    slot = max(150, (H - 80 - yy) // n_items)
     for i, item in enumerate(s["items"], 1):
         d.text((PAD, yy), f"{i:02d}", font=nf, fill=ORANGE)
-        lines = wrap(d, item, bf, 760)
-        draw_lines(d, lines, bf, NAVY, PAD + 120, yy + 8, 46)
-        yy += max(110, 36 + 46 * len(lines))
+        lines = wrap(d, item, bf, 720)
+        draw_lines(d, lines, bf, NAVY, PAD + 150, yy + 14, 60)
+        yy += slot
     return im
 
 
@@ -323,14 +326,16 @@ def render_bigstat(s, n, total, folder: Path):
 def render_checks(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 150), s["title"], font=F_bebas(88) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else NAVY)
-    yy = 290
-    bf = F_m(32)
+    d.text((PAD, 120), s["title"], font=F_bebas(136) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else NAVY)
+    yy = 310
+    bf = F_m(46)
+    n_items = max(1, len(s["items"]))
+    slot = max(140, (H - 90 - yy) // n_items)
     for item in s["items"]:
-        check(d, PAD, yy + 6, 18)
-        lines = wrap(d, item, bf, 820)
-        h = draw_lines(d, lines, bf, NAVY, PAD + 58, yy, 44)
-        yy = max(h, yy + 44) + 36
+        check(d, PAD, yy + 10, 24)
+        lines = wrap(d, item, bf, 780)
+        draw_lines(d, lines, bf, NAVY, PAD + 80, yy, 58)
+        yy += slot
     if s.get("note"):
         nf = F_m(26)
         nlines = wrap(d, s["note"], nf, W - PAD * 2)
@@ -341,16 +346,23 @@ def render_checks(s, n, total, folder: Path):
 def render_stages(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
-    d.text((PAD, 150), s["title"], font=F_bebas(88) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else WHITE)
-    yy = 255
-    nf = F_bebas(44)
-    bf = F_m(30)
+    d.text((PAD, 120), s["title"], font=F_bebas(136) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else WHITE)
+    yy = 280
+    nf = F_bebas(64)
+    bf = F_m(42)
+    n_items = max(1, len(s["items"]))
+    gap = 18
+    remaining = H - 70 - yy
+    box_h = (remaining - gap * (n_items - 1)) // n_items
+    box_h = max(140, box_h)
     for i, item in enumerate(s["items"], 1):
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + 132), 16, fill=MUTED)
-        d.text((PAD + 28, yy + 34), f"{i:02d}", font=nf, fill=ORANGE)
-        lines = wrap(d, item, bf, 740)
-        draw_lines(d, lines, bf, WHITE, PAD + 140, yy + 36, 40)
-        yy += 148
+        d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 18, fill=MUTED)
+        lines = wrap(d, item, bf, 700)
+        text_h = 50 * len(lines)
+        ty = yy + max(24, (box_h - text_h) // 2 - 8)
+        d.text((PAD + 28, ty), f"{i:02d}", font=nf, fill=ORANGE)
+        draw_lines(d, lines, bf, WHITE, PAD + 150, ty + 6, 50)
+        yy += box_h + gap
     return im
 
 
@@ -410,28 +422,30 @@ def render_apply(s, n, total, folder: Path):
 def render_offers(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 140), s["title"], font=F_b(56) if STYLE == "cad" else F_bebas(80), fill=INK if STYLE == "cad" else NAVY)
+    d.text((PAD, 110), s["title"], font=F_b(56) if STYLE == "cad" else F_bebas(136), fill=INK if STYLE == "cad" else NAVY)
     if s.get("body"):
-        bl = wrap(d, s["body"], F_m(30), W - PAD * 2)
-        draw_lines(d, bl, F_m(30), MUTED, PAD, 250, 42)
-        yy = 250 + 42 * len(bl) + 28
+        bl = wrap(d, s["body"], F_m(40), W - PAD * 2)
+        draw_lines(d, bl, F_m(40), MUTED, PAD, 260, 52)
+        yy = 260 + 52 * len(bl) + 16
     else:
-        yy = 280
-    bf = F_m(28)
-    tf = F_bebas(48)
-    badge_f = F_b(18)
+        yy = 270
+    bf = F_m(40)
+    tf = F_bebas(80)
+    badge_f = F_b(20)
     gap = 28
-    remaining = H - 80 - yy
+    remaining = H - 70 - yy
     box_h = (remaining - gap * (len(s["offers"]) - 1)) // max(1, len(s["offers"]))
-    box_h = max(220, box_h)
+    box_h = max(240, box_h)
     for off in s["offers"]:
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 20, fill=GRAY)
-        bw = tracked_width(d, off["badge"].upper(), badge_f, 3) + 28
-        d.rounded_rectangle((PAD + 32, yy + 28, PAD + 32 + bw, yy + 64), 12, fill=ORANGE)
-        draw_tracked(d, off["badge"].upper(), badge_f, WHITE, PAD + 46, yy + 36, 3)
-        d.text((PAD + 32, yy + 80), off["title"], font=tf, fill=NAVY)
-        lines = wrap(d, off["text"], bf, W - PAD * 2 - 64)
-        draw_lines(d, lines, bf, MUTED, PAD + 32, yy + 148, 40)
+        d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 24, fill=GRAY)
+        lines = wrap(d, off["text"], bf, W - PAD * 2 - 72)
+        content_h = 56 + 86 + 48 * len(lines)
+        inner_y = yy + max(28, (box_h - content_h) // 2)
+        bw = tracked_width(d, off["badge"].upper(), badge_f, 3) + 32
+        d.rounded_rectangle((PAD + 36, inner_y, PAD + 36 + bw, inner_y + 40), 12, fill=ORANGE)
+        draw_tracked(d, off["badge"].upper(), badge_f, WHITE, PAD + 52, inner_y + 8, 3)
+        d.text((PAD + 36, inner_y + 52), off["title"], font=tf, fill=NAVY)
+        draw_lines(d, lines, bf, MUTED, PAD + 36, inner_y + 148, 48)
         yy += box_h + gap
     return im
 
@@ -439,22 +453,22 @@ def render_offers(s, n, total, folder: Path):
 def render_cta(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
-    fb = F_b(64) if STYLE == "cad" else F_bebas(96)
+    fb = F_b(64) if STYLE == "cad" else F_bebas(140)
     tfill = INK if STYLE == "cad" else WHITE
-    yy = 150
+    yy = 130
     for line in s["title"]:
         d.text((PAD, yy), line, font=fb, fill=tfill)
-        yy += 96 if STYLE == "cad" else 96
-    expl_f = F_m(28)
+        yy += 132
+    expl_f = F_m(38)
     for line in s.get("lines") or []:
         elines = wrap(d, line, expl_f, W - PAD * 2)
         yy = draw_lines(d, elines, expl_f, tfill, PAD, yy + 8, 40)
     yy += 24
     if s.get("qr"):
         qr = Image.open(resolve_image(s["qr"], folder)).convert("RGBA")
-        side = 340
+        side = 300
         qr = qr.resize((side, side), Image.Resampling.NEAREST)
-        card = 380
+        card = 344
         cx = (W - card) // 2
         d.rounded_rectangle((cx, yy, cx + card, yy + card), 24, fill=WHITE)
         pad_q = (card - side) // 2
@@ -485,8 +499,8 @@ def render_cta(s, n, total, folder: Path):
         nf = F_m(24)
         nlines = wrap(d, s["note"], nf, W - PAD * 2)
         draw_lines(d, nlines, nf, MUTED if STYLE == "cad" else (255, 255, 255, 200), PAD, min(yy + 8, H - 160), 34)
-    cf = F_b(30)
-    draw_tracked(d, s["contact"], cf, ORANGE, PAD, H - 110, 2)
+    cf = F_b(32)
+    draw_tracked(d, s["contact"], cf, ORANGE, PAD, min(yy + 20, H - 90), 2)
     return im
 
 
@@ -535,7 +549,7 @@ def copy_md(data: dict) -> str:
         data["caption"],
         "",
         "Как применить: пост в @xeniia_neuro. Первый слайд — обложка. "
-        "Воронка: кодовое слово в комментарии → бот в директ. "
+        "Воронка: КУРС или ВНЕДРЕНИЕ боту @pikus_ai_bot. "
         "На обложку можно поставить настоящее фото Ксении в оранжевый круг; "
         "сгенерированное лицо не подставлять.",
         "",
