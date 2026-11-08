@@ -13,6 +13,10 @@
   Это документ-источник, а не исполняемый скилл.
 - [`brand/theme.json`](brand/theme.json) — фирменные токены: палитра, шрифты, скругления, тени.
   Источник истины, взят из локального пайплайна «Автомонтаж».
+- [`.claude/skills/ksenia-pikus-carousels/SKILL.md`](.claude/skills/ksenia-pikus-carousels/SKILL.md) —
+  скилл каруселей по Instagram-референсу: синий `#304073`, оранжевый `#E87C3C`,
+  PNG 1080×1350, ZIP. Сборщик `tools/build_carousel.py`.
+- `carousels/` — готовые карусели (PNG + ZIP).
 - [`brand/brandbook.md`](brand/brandbook.md) — тон, формат, правила титров, требования к съёмке.
   Фирменный стиль — из `theme.json`; правила хронометража и хуков — из данных аккаунта
   и нишевой аналитики Virale, цифры внутри.
