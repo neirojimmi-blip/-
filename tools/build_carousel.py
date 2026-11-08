@@ -19,7 +19,12 @@ ORANGE = (232, 124, 60, 255)    # #E87C3C
 WHITE = (255, 255, 255, 255)
 GRAY = (233, 236, 245, 255)     # #E9ECF5
 MUTED = (70, 82, 130, 255)      # #465282
+CAD_BLUE = (37, 99, 235, 255)   # как AutoCAD на референсе
+INK = (17, 24, 39, 255)
+BG_CAD = (239, 241, 246, 255)
+GRID_C = (214, 220, 232, 180)
 PAD = 80
+STYLE = "pikus-ig"
 
 
 def font(name: str, size: int) -> ImageFont.FreeTypeFont:
@@ -73,15 +78,33 @@ def draw_tracked(draw, text, fnt, fill, x, y, tracking=3):
     return cx
 
 
+def draw_grid(im: Image.Image, step=54):
+    d = ImageDraw.Draw(im)
+    for x in range(0, W + 1, step):
+        d.line((x, 0, x, H), fill=GRID_C, width=1)
+    for y in range(0, H + 1, step):
+        d.line((0, y, W, y), fill=GRID_C, width=1)
+
+
 def canvas(blue: bool) -> tuple[Image.Image, ImageDraw.ImageDraw]:
+    if STYLE == "cad":
+        im = Image.new("RGBA", (W, H), BG_CAD)
+        draw_grid(im)
+        return im, ImageDraw.Draw(im)
     im = Image.new("RGBA", (W, H), NAVY if blue else WHITE)
     return im, ImageDraw.Draw(im)
 
 
 def chrome(draw, kicker: str, n: int, total: int, blue: bool):
-    kfill = ORANGE if blue else MUTED
     kf = F_b(18)
     nf = F_b(20)
+    if STYLE == "cad":
+        draw_tracked(draw, kicker.upper(), kf, CAD_BLUE, PAD, 56, 3)
+        num = f"{n:02d} / {total:02d}"
+        nw = tracked_width(draw, num, nf, 2)
+        draw_tracked(draw, num, nf, MUTED, W - PAD - nw, 54, 2)
+        return
+    kfill = ORANGE if blue else MUTED
     draw_tracked(draw, kicker.upper(), kf, kfill, PAD, 56, 4)
     num = f"{n:02d} / {total:02d}"
     nw = tracked_width(draw, num, nf, 2)
@@ -123,6 +146,52 @@ def paste_plan(im: Image.Image, path: Path, box, radius=24, pad=22, bg=WHITE):
     im.alpha_composite(card, (x0, y0))
 
 
+def render_hook(s, n, total, folder: Path):
+    """Обложка по референсу: Claude + AutoCAD, чертёж, зачем вручную."""
+    im, d = canvas(False)
+    chrome(d, s["kicker"], n, total, False)
+    # марки связки — текст, без поддельных логотипов
+    pill_y = 100
+    d.rounded_rectangle((PAD, pill_y, PAD + 168, pill_y + 52), 22, fill=WHITE)
+    d.ellipse((PAD + 16, pill_y + 16, PAD + 36, pill_y + 36), fill=ORANGE)
+    d.text((PAD + 44, pill_y + 12), "Claude", font=F_sb(22), fill=INK)
+    plus_x = PAD + 184
+    d.text((plus_x, pill_y + 10), "+", font=F_m(28), fill=MUTED)
+    d.rounded_rectangle((plus_x + 40, pill_y, plus_x + 40 + 210, pill_y + 52), 22, fill=WHITE)
+    d.ellipse((plus_x + 56, pill_y + 16, plus_x + 76, pill_y + 36), fill=CAD_BLUE)
+    d.text((plus_x + 84, pill_y + 12), "AutoCAD", font=F_sb(22), fill=INK)
+    yy = 180
+    d.text((PAD, yy), "Claude +", font=F_b(86), fill=INK)
+    d.text((PAD, yy + 96), "AutoCAD", font=F_b(86), fill=CAD_BLUE)
+    q = s.get("question") or s.get("body") or ""
+    ql = wrap(d, q, F_sb(36), W - PAD * 2)
+    qy = yy + 210
+    draw_lines(d, ql, F_sb(36), INK, PAD, qy, 48)
+    img_top = qy + 48 * len(ql) + 24
+    photo = Image.open(resolve_image(s["image"], folder))
+    inner_w = W - PAD * 2 - 32
+    img_h = int(inner_w * photo.height / max(1, photo.width)) + 36
+    img_bot = min(H - 180, img_top + img_h)
+    paste_plan(
+        im,
+        resolve_image(s["image"], folder),
+        (PAD, img_top, W - PAD, img_bot),
+        radius=20,
+        pad=16,
+        bg=WHITE,
+    )
+    pill = s.get("pill") or "ПЛАН + КОМАНДЫ + ПРОВЕРКА"
+    pf = F_b(18)
+    pw = tracked_width(d, pill, pf, 2) + 48
+    px = (W - pw) / 2
+    py = img_bot - 28
+    d.rounded_rectangle((px, py, px + pw, py + 52), 18, fill=NAVY)
+    draw_tracked(d, pill, pf, WHITE, px + 24, py + 16, 2)
+    foot = s.get("footer") or "Как работает связка — листай"
+    d.text((PAD, H - 120), foot, font=F_m(28), fill=MUTED)
+    return im
+
+
 def render_cover(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
@@ -159,9 +228,9 @@ def render_plan(s, n, total, folder: Path):
     blue = bool(s.get("blue"))
     im, d = canvas(blue)
     chrome(d, s["kicker"], n, total, blue)
-    title_fill = WHITE if blue else NAVY
+    title_fill = INK if STYLE == "cad" else (WHITE if blue else NAVY)
     title = s["title"]
-    d.text((PAD, 140), title, font=F_bebas(72 if len(title) > 14 else 88), fill=title_fill)
+    d.text((PAD, 140), title, font=F_b(52) if STYLE == "cad" else F_bebas(72 if len(title) > 14 else 88), fill=title_fill)
     bf = F_m(30)
     nf = F_m(24)
     body_lines = wrap(d, s["body"], bf, W - PAD * 2) if s.get("body") else []
@@ -186,12 +255,12 @@ def render_plan(s, n, total, folder: Path):
         for i, row in enumerate(stats):
             cx = PAD + col_w * i
             d.text((cx, yy), str(row["value"]), font=vf, fill=ORANGE)
-            d.text((cx, yy + 52), row["label"].upper(), font=lf, fill=MUTED if not blue else (255, 255, 255, 200))
+            d.text((cx, yy + 52), row["label"].upper(), font=lf, fill=MUTED)
         yy += stats_h
     if body_lines:
         yy = draw_lines(d, body_lines, bf, title_fill, PAD, yy, 42)
     if note_lines:
-        draw_lines(d, note_lines, nf, (255, 255, 255, 200) if blue else MUTED, PAD, yy + 8, 34)
+        draw_lines(d, note_lines, nf, MUTED, PAD, yy + 8, 34)
     return im
 
 
@@ -221,7 +290,7 @@ def render_page(s, n, total, folder: Path):
 def render_numbered(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 160), s["title"], font=F_bebas(88), fill=NAVY)
+    d.text((PAD, 160), s["title"], font=F_bebas(88) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else NAVY)
     yy = 300
     nf = F_bebas(56)
     bf = F_m(34)
@@ -254,7 +323,7 @@ def render_bigstat(s, n, total, folder: Path):
 def render_checks(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 150), s["title"], font=F_bebas(88), fill=NAVY)
+    d.text((PAD, 150), s["title"], font=F_bebas(88) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else NAVY)
     yy = 290
     bf = F_m(32)
     for item in s["items"]:
@@ -272,7 +341,7 @@ def render_checks(s, n, total, folder: Path):
 def render_stages(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
-    d.text((PAD, 150), s["title"], font=F_bebas(88), fill=WHITE)
+    d.text((PAD, 150), s["title"], font=F_bebas(88) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else WHITE)
     yy = 255
     nf = F_bebas(44)
     bf = F_m(30)
@@ -341,7 +410,7 @@ def render_apply(s, n, total, folder: Path):
 def render_offers(s, n, total, folder: Path):
     im, d = canvas(False)
     chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 140), s["title"], font=F_bebas(80), fill=NAVY)
+    d.text((PAD, 140), s["title"], font=F_b(56) if STYLE == "cad" else F_bebas(80), fill=INK if STYLE == "cad" else NAVY)
     if s.get("body"):
         bl = wrap(d, s["body"], F_m(30), W - PAD * 2)
         draw_lines(d, bl, F_m(30), MUTED, PAD, 250, 42)
@@ -370,15 +439,16 @@ def render_offers(s, n, total, folder: Path):
 def render_cta(s, n, total, folder: Path):
     im, d = canvas(True)
     chrome(d, s["kicker"], n, total, True)
-    fb = F_bebas(96)
+    fb = F_b(64) if STYLE == "cad" else F_bebas(96)
+    tfill = INK if STYLE == "cad" else WHITE
     yy = 150
     for line in s["title"]:
-        d.text((PAD, yy), line, font=fb, fill=WHITE)
-        yy += 96
+        d.text((PAD, yy), line, font=fb, fill=tfill)
+        yy += 96 if STYLE == "cad" else 96
     expl_f = F_m(28)
     for line in s.get("lines") or []:
         elines = wrap(d, line, expl_f, W - PAD * 2)
-        yy = draw_lines(d, elines, expl_f, WHITE, PAD, yy + 8, 40)
+        yy = draw_lines(d, elines, expl_f, tfill, PAD, yy + 8, 40)
     yy += 24
     if s.get("qr"):
         qr = Image.open(resolve_image(s["qr"], folder)).convert("RGBA")
@@ -414,7 +484,7 @@ def render_cta(s, n, total, folder: Path):
     if s.get("note"):
         nf = F_m(24)
         nlines = wrap(d, s["note"], nf, W - PAD * 2)
-        draw_lines(d, nlines, nf, (255, 255, 255, 200), PAD, min(yy + 8, H - 160), 34)
+        draw_lines(d, nlines, nf, MUTED if STYLE == "cad" else (255, 255, 255, 200), PAD, min(yy + 8, H - 160), 34)
     cf = F_b(30)
     draw_tracked(d, s["contact"], cf, ORANGE, PAD, H - 110, 2)
     return im
@@ -422,6 +492,7 @@ def render_cta(s, n, total, folder: Path):
 
 RENDERERS = {
     "cover": render_cover,
+    "hook": render_hook,
     "page": render_page,
     "plan": render_plan,
     "numbered": render_numbered,
@@ -481,7 +552,8 @@ def copy_md(data: dict) -> str:
 
 
 def contact_sheet(paths: list[Path], dest: Path) -> None:
-    cols, rows = 3, 3
+    n = len(paths)
+    cols, rows = (4, 2) if n == 8 else (3, 3)
     tw, gap = 360, 16
     th = int(tw * H / W)
     sheet = Image.new("RGB", (cols * tw + (cols + 1) * gap,
@@ -514,6 +586,8 @@ def main() -> int:
     if not folder.is_absolute():
         folder = ROOT / folder
     data = json.loads((folder / "slides.json").read_text(encoding="utf-8"))
+    global STYLE
+    STYLE = data.get("style", "pikus-ig")
     slides = data["slides"]
     if not 8 <= len(slides) <= 10:
         raise SystemExit(f"need 8–10 slides, got {len(slides)}")
