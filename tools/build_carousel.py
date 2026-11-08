@@ -212,8 +212,8 @@ def render_cover(im, d, s):
     for line in s["title"]:
         d.text((80, yy), line, font=fb, fill=WHITE)
         yy += 148
-    pk_y = yy + 12
-    pk_size = 118 if len(s["script"]) <= 6 else 82
+    pk_y = yy + 8
+    pk_size = 136 if len(s["script"]) <= 6 else 112
     bbox = draw_pushkin(d, s["script"], 80, pk_y, pk_size, min_left=80, min_right=W - 80)
     body_f = F_m(40)
     lines = wrap(d, s["body"], body_f, 860)
@@ -238,11 +238,11 @@ def render_card(im, s):
     def painter(_ov, d):
         d.ellipse((132, 206, 146, 220), fill=ACCENT)
         draw_tracked(d, orange_label(s, f"слайд {s['step']}"), F_b(20), ACCENT, 162, 200, 3)
-        d.text((132, 250), s["title"], font=F_bebas(92), fill=TEXT)
-        d.rounded_rectangle((132, 370, 220, 376), 3, fill=ACCENT)
-        body_f = F_m(40)
+        d.text((132, 250), s["title"], font=F_bebas(104), fill=TEXT)
+        d.rounded_rectangle((132, 378, 220, 384), 3, fill=ACCENT)
+        body_f = F_m(42)
         lines = wrap(d, s["body"], body_f, 760)
-        yy = draw_lines(d, lines, body_f, TEXT, 132, 420, 54)
+        yy = draw_lines(d, lines, body_f, TEXT, 132, 428, 56)
         draw_terms(d, term_list(s), 132, yy + 20, 760)
     paint_card(im, painter)
 
@@ -255,7 +255,7 @@ def render_insight(im, d, s):
     d.text((80, yy + 96), s["title_break"], font=fb, fill=ACCENT)
     body_y = yy + 230
     if s.get("script"):
-        bbox = draw_pushkin(d, s["script"], 80, yy + 210, 88)
+        bbox = draw_pushkin(d, s["script"], 80, yy + 210, 112)
         body_y = bbox[3] + 28
     body_f = F_m(40)
     lines = wrap(d, s["body"], body_f, 860)
@@ -266,9 +266,9 @@ def render_step(im, s):
     def painter(_ov, d):
         d.ellipse((132, 206, 146, 220), fill=ACCENT)
         draw_tracked(d, orange_label(s, f"шаг {s.get('number', '')}"), F_b(20), ACCENT, 162, 200, 3)
-        d.text((132, 250), s["title"], font=F_bebas(92), fill=TEXT)
+        d.text((132, 250), s["title"], font=F_bebas(104), fill=TEXT)
         if s.get("script"):
-            bbox = draw_pushkin(d, s["script"], 132, 360, 84, min_left=132, min_right=W - 132)
+            bbox = draw_pushkin(d, s["script"], 132, 360, 112, min_left=132, min_right=W - 132)
             rule_y = bbox[3] + 18
             body_y = rule_y + 36
         else:
@@ -286,19 +286,19 @@ def render_chips(im, s):
     def painter(_ov, d):
         d.ellipse((132, 198, 146, 212), fill=ACCENT)
         draw_tracked(d, orange_label(s, f"шаг {s.get('number', '')}"), F_b(20), ACCENT, 162, 192, 3)
-        fb = F_bebas(80)
-        yy = 240
+        fb = F_bebas(92)
+        yy = 236
         for line in s["title"].split("\n"):
             d.text((132, yy), line, font=fb, fill=TEXT)
-            yy += 82
+            yy += 90
         d.rounded_rectangle((132, yy + 8, 220, yy + 14), 3, fill=ACCENT)
         body_f = F_m(34)
         lines = wrap(d, s["body"], body_f, 760)
         yy = draw_lines(d, lines, body_f, TEXT, 132, yy + 40, 48) + 28
         chips = s["chips"]
         gap, cols = 18, 2
-        x0, cw, ch = 132, 354, 110
-        cf = F_bebas(40)
+        x0, cw, ch = 132, 354, 118
+        cf = F_bebas(48)
         for i, chip in enumerate(chips):
             r, c = divmod(i, cols)
             x = x0 + c * (cw + gap)
@@ -318,7 +318,7 @@ def render_split(im, s):
     def painter(_ov, d):
         d.ellipse((132, 198, 146, 212), fill=ACCENT)
         draw_tracked(d, orange_label(s, f"шаг {s.get('number', '')}"), F_b(20), ACCENT, 162, 192, 3)
-        d.text((132, 236), s["title"], font=F_bebas(80), fill=TEXT)
+        d.text((132, 232), s["title"], font=F_bebas(92), fill=TEXT)
         y = 340
         pw, ph, gap = 354, 320, 18
         panes = [
@@ -336,7 +336,7 @@ def render_split(im, s):
             draw_lines(d, lines, bf, col, x + 28, y + 78, 40)
         note_y = y + ph + 28
         if s.get("script"):
-            bbox = draw_pushkin(d, s["script"], 132, y + ph + 16, 78, min_left=132, min_right=W - 132)
+            bbox = draw_pushkin(d, s["script"], 132, y + ph + 16, 108, min_left=132, min_right=W - 132)
             note_y = bbox[3] + 12
         bf = F_m(32)
         lines = wrap(d, s["note"], bf, 760)
@@ -349,7 +349,7 @@ def render_plan(im, s, folder: Path):
     def painter(ov, d):
         d.ellipse((132, 190, 146, 204), fill=ACCENT)
         draw_tracked(d, orange_label(s, f"слайд {s['step']}"), F_b(20), ACCENT, 162, 184, 3)
-        d.text((132, 224), s["title"], font=F_bebas(84), fill=TEXT)
+        d.text((132, 224), s["title"], font=F_bebas(96), fill=TEXT)
         photo = Image.open(resolve_image(s["image"], folder)).convert("RGBA")
         max_w, max_h = 760, 520
         scale = min(max_w / photo.width, max_h / photo.height)
@@ -373,7 +373,7 @@ def render_offers(im, s):
     def painter(_ov, d):
         d.ellipse((132, 190, 146, 204), fill=ACCENT)
         draw_tracked(d, orange_label(s, f"слайд {s['step']}"), F_b(20), ACCENT, 162, 184, 3)
-        d.text((132, 224), s["title"], font=F_bebas(80), fill=TEXT)
+        d.text((132, 224), s["title"], font=F_bebas(92), fill=TEXT)
         bf = F_m(32)
         lines = wrap(d, s["body"], bf, 760)
         yy = draw_lines(d, lines, bf, TEXT, 132, 320, 44) + 18
@@ -400,16 +400,18 @@ def render_offers(im, s):
 
 
 def render_cta(im, d, s, folder: Path):
-    y = pill(d, s["kicker"], 80, 150, F_b(20))
-    yy = y + 36
     words = s["words"]
     gap = 20
     n = max(1, len(words))
+    simple = n == 1 and not s.get("lines") and not s.get("qr") and not s.get("script")
+    pill_y = 430 if simple else 168
+    y = pill(d, s["kicker"], 80, pill_y, F_b(22))
+    yy = y + (36 if simple else 48)
     if n == 1:
         ww = W - 160
-        hh = 200
-        wf = F_bebas(140 if len(words[0]) <= 4 else 108)
-        text_y = 48 if len(words[0]) <= 4 else 52
+        hh = 260 if simple else 220
+        wf = F_bebas(152 if len(words[0]) <= 4 else 136)
+        text_y = 70 if simple else 52
     else:
         ww = (W - 160 - gap * (n - 1)) // n
         hh = 140
@@ -426,8 +428,15 @@ def render_cta(im, d, s, folder: Path):
         tw = d.textlength(w, font=wf)
         d.text((x + (ww - tw) / 2, yy + text_y), w, font=wf, fill=WHITE)
     d = ImageDraw.Draw(im)
-    bbox = draw_pushkin(d, s["script"], 110, yy + hh + 8, 100, min_left=88, min_right=W - 80)
-    yy = bbox[3] + 20
+    script = s.get("script") or ""
+    if script:
+        pk = 128 if len(script) <= 6 else 108
+        tw_pk = d.textlength(script, font=F_pk(pk))
+        pk_x = max(80, (W - tw_pk) / 2)
+        bbox = draw_pushkin(d, script, pk_x, yy + hh + 8, pk, min_left=80, min_right=W - 80)
+        yy = bbox[3] + 20
+    else:
+        yy = yy + hh + 20
     bf = F_m(32)
     for line in s.get("lines") or []:
         if " — " in line:
