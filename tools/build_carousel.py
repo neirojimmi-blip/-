@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Карусель Ксении: PNG 1080×1350 в стиле её Instagram, не «по мотивам»."""
+"""Карусель Ксении: PNG 1080×1350, первая генерация — капс Bebas + прописной Pushkin."""
 
 from __future__ import annotations
 
@@ -8,23 +8,23 @@ import sys
 import zipfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 FONTS = ROOT / "brand" / "fonts"
 W, H = 1080, 1350
 
-NAVY = (48, 64, 115, 255)       # #304073
-ORANGE = (232, 124, 60, 255)    # #E87C3C
+BG = (46, 64, 120, 255)
+PANEL = (58, 76, 142, 255)
+DEEP = (36, 53, 102, 255)
+CARD = (255, 255, 255, 255)
+CARD2 = (242, 245, 251, 255)
+ACCENT = (255, 117, 31, 255)
+TEXT = (46, 64, 120, 255)
+SOFT = (90, 106, 154, 255)
 WHITE = (255, 255, 255, 255)
-GRAY = (233, 236, 245, 255)     # #E9ECF5
-MUTED = (70, 82, 130, 255)      # #465282
-CAD_BLUE = (37, 99, 235, 255)   # как AutoCAD на референсе
-INK = (17, 24, 39, 255)
-BG_CAD = (239, 241, 246, 255)
-GRID_C = (214, 220, 232, 180)
-PAD = 80
-STYLE = "pikus-ig"
+WHITE70 = (255, 255, 255, 200)
+WHITE28 = (255, 255, 255, 72)
 
 
 def font(name: str, size: int) -> ImageFont.FreeTypeFont:
@@ -35,6 +35,78 @@ def F_bebas(s): return font("BebasNeue.ttf", s)
 def F_m(s): return font("Montserrat-Medium.ttf", s)
 def F_sb(s): return font("Montserrat-SemiBold.ttf", s)
 def F_b(s): return font("Montserrat-Bold.ttf", s)
+def F_pk(s): return font("Pushkin.ttf", s)
+
+
+def gradient() -> Image.Image:
+    strip = Image.new("RGB", (1, H))
+    px = strip.load()
+    for y in range(H):
+        t = y / (H - 1)
+        if t < 0.38:
+            u = t / 0.38
+            c = tuple(int(PANEL[i] * (1 - u) + BG[i] * u) for i in range(3))
+        else:
+            u = (t - 0.38) / 0.62
+            c = tuple(int(BG[i] * (1 - u) + DEEP[i] * u) for i in range(3))
+        px[0, y] = c
+    im = strip.resize((W, H), Image.Resampling.BILINEAR).convert("RGBA")
+    glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    gd.ellipse((620, -280, 1480, 520), fill=(255, 117, 31, 38))
+    glow = glow.filter(ImageFilter.GaussianBlur(60))
+    return Image.alpha_composite(im, glow)
+
+
+def plus(draw: ImageDraw.ImageDraw, x: int, y: int, color=WHITE28, size=22, thick=3):
+    draw.rectangle((x - size // 2, y - thick // 2, x + size // 2, y + thick // 2), fill=color)
+    draw.rectangle((x - thick // 2, y - size // 2, x + thick // 2, y + size // 2), fill=color)
+
+
+def tracked_width(draw, text, fnt, tracking) -> float:
+    if not text:
+        return 0
+    return sum(draw.textlength(ch, font=fnt) for ch in text) + tracking * max(0, len(text) - 1)
+
+
+def draw_tracked(draw, text, fnt, fill, x, y, tracking=4):
+    cx = x
+    for ch in text:
+        draw.text((cx, y), ch, font=fnt, fill=fill)
+        cx += draw.textlength(ch, font=fnt) + tracking
+    return cx
+
+
+def chrome(im: Image.Image, account: str, n: int, total: int) -> ImageDraw.ImageDraw:
+    d = ImageDraw.Draw(im)
+    d.rectangle((0, 0, W, 8), fill=ACCENT)
+    d.rounded_rectangle((28, 28, W - 28, H - 28), 24, outline=(255, 255, 255, 32), width=2)
+    for x, y in ((48, 48), (W - 48, 48), (48, H - 48), (W - 48, H - 48)):
+        plus(d, x, y)
+    f = F_sb(22)
+    y = 58
+    draw_tracked(d, account, f, WHITE70, 80, y, 4)
+    num = f"{n:02d}"
+    rest = f" / {total:02d}"
+    rest_w = tracked_width(d, rest, f, 3)
+    num_w = tracked_width(d, num, f, 3)
+    x = W - 80 - rest_w - num_w
+    draw_tracked(d, num, f, ACCENT, x, y, 3)
+    draw_tracked(d, rest, f, WHITE, x + num_w, y, 3)
+    return d
+
+
+def shadow_card(im: Image.Image, box, radius=24, fill=CARD):
+    sh = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    sd = ImageDraw.Draw(sh)
+    x0, y0, x1, y1 = box
+    sd.rounded_rectangle((x0, y0 + 14, x1, y1 + 22), radius, fill=(23, 33, 64, 80))
+    sh = sh.filter(ImageFilter.GaussianBlur(16))
+    im.alpha_composite(sh)
+    d = ImageDraw.Draw(im)
+    d.rounded_rectangle(box, radius, fill=fill)
+    d.rounded_rectangle(box, radius, outline=(46, 64, 120, 30), width=2)
+    return d
 
 
 def wrap(draw, text, fnt, max_w) -> list[str]:
@@ -64,58 +136,41 @@ def draw_lines(draw, lines, fnt, fill, x, y, leading) -> int:
     return yy
 
 
-def tracked_width(draw, text, fnt, tracking) -> float:
-    if not text:
-        return 0
-    return sum(draw.textlength(ch, font=fnt) for ch in text) + tracking * max(0, len(text) - 1)
+def draw_pushkin(draw, text, x, y, size, fill=ACCENT, min_left=80, min_right=W - 80):
+    f = F_pk(size)
+    bbox = draw.textbbox((x, y), text, font=f)
+    dx = 0
+    if bbox[0] < min_left:
+        dx = min_left - bbox[0]
+    if bbox[2] + dx > min_right:
+        dx -= (bbox[2] + dx - min_right)
+    draw.text((x + dx, y), text, font=f, fill=fill)
+    return draw.textbbox((x + dx, y), text, font=f)
 
 
-def draw_tracked(draw, text, fnt, fill, x, y, tracking=3):
-    cx = x
-    for ch in text:
-        draw.text((cx, y), ch, font=fnt, fill=fill)
-        cx += draw.textlength(ch, font=fnt) + tracking
-    return cx
+def paint_card(im: Image.Image, painter, pad_top=44, pad_bot=56, x0=80, x1=W - 80):
+    overlay = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    painter(overlay, od)
+    bbox = overlay.getbbox()
+    if bbox is None:
+        return ImageDraw.Draw(im)
+    top = max(148, bbox[1] - pad_top)
+    bot = min(H - 78, bbox[3] + pad_bot)
+    shadow_card(im, (x0, top, x1, bot))
+    im.alpha_composite(overlay)
+    return ImageDraw.Draw(im)
 
 
-def draw_grid(im: Image.Image, step=54):
-    d = ImageDraw.Draw(im)
-    for x in range(0, W + 1, step):
-        d.line((x, 0, x, H), fill=GRID_C, width=1)
-    for y in range(0, H + 1, step):
-        d.line((0, y, W, y), fill=GRID_C, width=1)
-
-
-def canvas(blue: bool) -> tuple[Image.Image, ImageDraw.ImageDraw]:
-    if STYLE == "cad":
-        im = Image.new("RGBA", (W, H), BG_CAD)
-        draw_grid(im)
-        return im, ImageDraw.Draw(im)
-    im = Image.new("RGBA", (W, H), NAVY if blue else WHITE)
-    return im, ImageDraw.Draw(im)
-
-
-def chrome(draw, kicker: str, n: int, total: int, blue: bool):
-    kf = F_b(22)
-    nf = F_b(24)
-    if STYLE == "cad":
-        draw_tracked(draw, kicker.upper(), kf, CAD_BLUE, PAD, 56, 3)
-        num = f"{n:02d} / {total:02d}"
-        nw = tracked_width(draw, num, nf, 2)
-        draw_tracked(draw, num, nf, MUTED, W - PAD - nw, 54, 2)
-        return
-    kfill = ORANGE if blue else MUTED
-    draw_tracked(draw, kicker.upper(), kf, kfill, PAD, 56, 4)
-    num = f"{n:02d} / {total:02d}"
-    nw = tracked_width(draw, num, nf, 2)
-    draw_tracked(draw, num, nf, ORANGE, W - PAD - nw, 54, 2)
-
-
-def check(draw, x, y, r=18):
-    draw.ellipse((x, y, x + r * 2, y + r * 2), fill=ORANGE)
-    # галочка
-    pts = [(x + 9, y + r), (x + r - 1, y + r * 2 - 11), (x + r * 2 - 8, y + 10)]
-    draw.line(pts, fill=WHITE, width=5, joint="curve")
+def pill(draw, text, x, y, fnt):
+    label = text.upper()
+    pad_x, pad_y = 22, 12
+    tw = tracked_width(draw, label, fnt, 3)
+    th = 22
+    box = (x, y, x + tw + pad_x * 2, y + th + pad_y * 2)
+    draw.rounded_rectangle(box, 999, outline=ACCENT, width=2)
+    draw_tracked(draw, label, fnt, ACCENT, x + pad_x, y + pad_y - 2, 3)
+    return box[3]
 
 
 def resolve_image(path: str, folder: Path) -> Path:
@@ -128,441 +183,296 @@ def resolve_image(path: str, folder: Path) -> Path:
     return ROOT / p
 
 
-def paste_plan(im: Image.Image, path: Path, box, radius=24, pad=22, bg=WHITE):
-    """Исходный чертёж на карточке. Не перерисовываем — только масштаб."""
-    photo = Image.open(path).convert("RGBA")
-    x0, y0, x1, y1 = (int(v) for v in box)
-    w, h = x1 - x0, y1 - y0
-    if w < 40 or h < 40:
-        return
-    card = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    ImageDraw.Draw(card).rounded_rectangle((0, 0, w - 1, h - 1), radius, fill=bg)
-    inner_w, inner_h = max(1, w - pad * 2), max(1, h - pad * 2)
-    scale = min(inner_w / photo.width, inner_h / photo.height)
-    nw = max(1, int(photo.width * scale))
-    nh = max(1, int(photo.height * scale))
-    photo = photo.resize((nw, nh), Image.Resampling.LANCZOS)
-    card.paste(photo, ((w - nw) // 2, (h - nh) // 2), photo)
-    im.alpha_composite(card, (x0, y0))
-
-
-def render_hook(s, n, total, folder: Path):
-    """Обложка по референсу: Claude + AutoCAD, чертёж, зачем вручную."""
-    im, d = canvas(False)
-    chrome(d, s["kicker"], n, total, False)
-    # марки связки — текст, без поддельных логотипов
-    pill_y = 100
-    d.rounded_rectangle((PAD, pill_y, PAD + 168, pill_y + 52), 22, fill=WHITE)
-    d.ellipse((PAD + 16, pill_y + 16, PAD + 36, pill_y + 36), fill=ORANGE)
-    d.text((PAD + 44, pill_y + 12), "Claude", font=F_sb(22), fill=INK)
-    plus_x = PAD + 184
-    d.text((plus_x, pill_y + 10), "+", font=F_m(28), fill=MUTED)
-    d.rounded_rectangle((plus_x + 40, pill_y, plus_x + 40 + 210, pill_y + 52), 22, fill=WHITE)
-    d.ellipse((plus_x + 56, pill_y + 16, plus_x + 76, pill_y + 36), fill=CAD_BLUE)
-    d.text((plus_x + 84, pill_y + 12), "AutoCAD", font=F_sb(22), fill=INK)
-    yy = 180
-    d.text((PAD, yy), "Claude +", font=F_b(86), fill=INK)
-    d.text((PAD, yy + 96), "AutoCAD", font=F_b(86), fill=CAD_BLUE)
-    q = s.get("question") or s.get("body") or ""
-    ql = wrap(d, q, F_sb(36), W - PAD * 2)
-    qy = yy + 210
-    draw_lines(d, ql, F_sb(36), INK, PAD, qy, 48)
-    img_top = qy + 48 * len(ql) + 24
-    photo = Image.open(resolve_image(s["image"], folder))
-    inner_w = W - PAD * 2 - 32
-    img_h = int(inner_w * photo.height / max(1, photo.width)) + 36
-    img_bot = min(H - 180, img_top + img_h)
-    paste_plan(
-        im,
-        resolve_image(s["image"], folder),
-        (PAD, img_top, W - PAD, img_bot),
-        radius=20,
-        pad=16,
-        bg=WHITE,
-    )
-    pill = s.get("pill") or "ПЛАН + КОМАНДЫ + ПРОВЕРКА"
-    pf = F_b(18)
-    pw = tracked_width(d, pill, pf, 2) + 48
-    px = (W - pw) / 2
-    py = img_bot - 28
-    d.rounded_rectangle((px, py, px + pw, py + 52), 18, fill=NAVY)
-    draw_tracked(d, pill, pf, WHITE, px + 24, py + 16, 2)
-    foot = s.get("footer") or "Как работает связка — листай"
-    d.text((PAD, H - 120), foot, font=F_m(28), fill=MUTED)
-    return im
-
-
-def render_cover(s, n, total, folder: Path):
-    im, d = canvas(True)
-    chrome(d, s["kicker"], n, total, True)
-    fb = F_bebas(148)
-    yy = 150
+def render_cover(im, d, s):
+    y = pill(d, s["kicker"], 80, 168, F_b(20))
+    fb = F_bebas(168)
+    yy = y + 36
     for line in s["title"]:
-        d.text((PAD, yy), line, font=fb, fill=WHITE)
-        yy += 142
-    body = F_m(42)
-    if s.get("image"):
-        lines = wrap(d, s["body"], body, W - PAD * 2)
-        body_h = 52 * len(lines)
-        paste_plan(
-            im,
-            resolve_image(s["image"], folder),
-            (PAD, yy + 12, W - PAD, H - 86 - body_h),
-            radius=24,
-            pad=28,
-            bg=WHITE,
-        )
-        draw_lines(d, lines, body, WHITE, PAD, H - 78 - body_h, 52)
-        return im
-    cx, cy, r = 800, 820, 230
-    d.ellipse((cx - r, cy - r, cx + r, cy + r), fill=ORANGE)
-    cf = F_bebas(88)
-    tw = d.textlength(s["circle"], font=cf)
-    d.text((cx - tw / 2, cy - 48), s["circle"], font=cf, fill=WHITE)
-    lines = wrap(d, s["body"], body, 520)
-    draw_lines(d, lines, body, WHITE, PAD, H - 90 - 48 * len(lines), 48)
-    return im
+        d.text((80, yy), line, font=fb, fill=WHITE)
+        yy += 148
+    pk_y = yy + 12
+    bbox = draw_pushkin(d, s["script"], 80, pk_y, 118, min_left=80, min_right=W - 80)
+    body_f = F_m(40)
+    lines = wrap(d, s["body"], body_f, 860)
+    draw_lines(d, lines, body_f, WHITE, 80, bbox[3] + 28, 54)
+    hint = F_sb(24)
+    label = "ЛИСТАЙ  →"
+    tw = d.textlength(label, font=hint)
+    d.text((W - 80 - tw, H - 110), label, font=hint, fill=WHITE70)
 
 
-def render_plan(s, n, total, folder: Path):
-    blue = bool(s.get("blue"))
-    im, d = canvas(blue)
-    chrome(d, s["kicker"], n, total, blue)
-    title_fill = INK if STYLE == "cad" else (WHITE if blue else NAVY)
-    title = s["title"]
-    d.text((PAD, 130), title, font=F_b(52) if STYLE == "cad" else F_bebas(120 if len(title) > 14 else 132), fill=title_fill)
-    bf = F_m(38)
-    nf = F_m(28)
-    body_lines = wrap(d, s["body"], bf, W - PAD * 2) if s.get("body") else []
-    note_lines = wrap(d, s["note"], nf, W - PAD * 2) if s.get("note") else []
-    stats = s.get("stats") or []
-    stats_h = 110 if stats else 0
-    footer = 24 + 48 * len(body_lines) + 36 * len(note_lines) + stats_h
-    top = 280
-    bottom = H - 56 - footer
-    paste_plan(
-        im,
-        resolve_image(s["image"], folder),
-        (PAD, top, W - PAD, bottom),
-        radius=24,
-        pad=24,
-        bg=WHITE if blue else GRAY,
-    )
-    yy = bottom + 18
-    if stats:
-        col_w = (W - PAD * 2) / len(stats)
-        vf, lf = F_bebas(64), F_b(24)
-        for i, row in enumerate(stats):
-            cx = PAD + col_w * i
-            lab_fill = WHITE if (STYLE != "cad" and blue) else MUTED
-            d.text((cx, yy), str(row["value"]), font=vf, fill=ORANGE)
-            d.text((cx, yy + 68), row["label"].upper(), font=lf, fill=lab_fill)
-        yy += stats_h
-    if body_lines:
-        yy = draw_lines(d, body_lines, bf, title_fill, PAD, yy, 48)
-    if note_lines:
-        draw_lines(d, note_lines, nf, MUTED, PAD, yy + 8, 34)
-    return im
+def render_card(im, s):
+    def painter(_ov, d):
+        d.ellipse((132, 206, 146, 220), fill=ACCENT)
+        draw_tracked(d, f"СЛАЙД {s['step']}", F_b(20), ACCENT, 162, 200, 3)
+        d.text((132, 250), s["title"], font=F_bebas(92), fill=TEXT)
+        d.rounded_rectangle((132, 370, 220, 376), 3, fill=ACCENT)
+        body_f = F_m(40)
+        lines = wrap(d, s["body"], body_f, 760)
+        draw_lines(d, lines, body_f, TEXT, 132, 420, 54)
+    paint_card(im, painter)
 
 
-def render_page(s, n, total, folder: Path):
-    """Страница гайда как слайд Instagram 1080×1350. Чертежи не перерисовываем."""
-    src = Image.open(resolve_image(s["image"], folder)).convert("RGBA")
-    if src.size != (W, H):
-        bg = NAVY if s.get("blue") else WHITE
-        im = Image.new("RGBA", (W, H), bg)
-        scale = min(W / src.width, H / src.height)
-        nw, nh = max(1, int(src.width * scale)), max(1, int(src.height * scale))
-        src = src.resize((nw, nh), Image.Resampling.LANCZOS)
-        im.paste(src, ((W - nw) // 2, (H - nh) // 2), src)
-    else:
-        im = src
+def render_insight(im, d, s):
+    y = pill(d, f"слайд {s['step']}", 80, 168, F_b(20))
+    fb = F_bebas(96)
+    yy = y + 48
+    d.text((80, yy), s["title"], font=fb, fill=WHITE)
+    d.text((80, yy + 96), s["title_break"], font=fb, fill=ACCENT)
+    body_y = yy + 230
+    if s.get("script"):
+        bbox = draw_pushkin(d, s["script"], 80, yy + 210, 88)
+        body_y = bbox[3] + 28
+    body_f = F_m(40)
+    lines = wrap(d, s["body"], body_f, 860)
+    draw_lines(d, lines, body_f, WHITE, 80, body_y, 52)
+
+
+def render_step(im, s):
+    def painter(_ov, d):
+        d.ellipse((132, 206, 146, 220), fill=ACCENT)
+        draw_tracked(d, f"{s['label'].upper()} {s['number']}", F_b(20), ACCENT, 162, 200, 3)
+        d.text((132, 250), s["title"], font=F_bebas(92), fill=TEXT)
+        if s.get("script"):
+            bbox = draw_pushkin(d, s["script"], 132, 360, 84, min_left=132, min_right=W - 132)
+            rule_y = bbox[3] + 18
+            body_y = rule_y + 36
+        else:
+            rule_y = 370
+            body_y = 420
+        d.rounded_rectangle((132, rule_y, 220, rule_y + 6), 3, fill=ACCENT)
+        body_f = F_m(40)
+        lines = wrap(d, s["body"], body_f, 760)
+        draw_lines(d, lines, body_f, TEXT, 132, body_y, 54)
+    paint_card(im, painter)
+
+
+def render_chips(im, s):
+    def painter(_ov, d):
+        d.ellipse((132, 198, 146, 212), fill=ACCENT)
+        draw_tracked(d, f"{s['label'].upper()} {s['number']}", F_b(20), ACCENT, 162, 192, 3)
+        fb = F_bebas(80)
+        yy = 240
+        for line in s["title"].split("\n"):
+            d.text((132, yy), line, font=fb, fill=TEXT)
+            yy += 82
+        d.rounded_rectangle((132, yy + 8, 220, yy + 14), 3, fill=ACCENT)
+        body_f = F_m(34)
+        lines = wrap(d, s["body"], body_f, 760)
+        yy = draw_lines(d, lines, body_f, TEXT, 132, yy + 40, 48) + 28
+        chips = s["chips"]
+        gap, cols = 18, 2
+        x0, cw, ch = 132, 354, 110
+        cf = F_bebas(40)
+        for i, chip in enumerate(chips):
+            r, c = divmod(i, cols)
+            x = x0 + c * (cw + gap)
+            y = yy + r * (ch + gap)
+            d.rounded_rectangle((x, y, x + cw, y + ch), 24, fill=CARD2)
+            d.rounded_rectangle((x, y, x + cw, y + ch), 24, outline=(46, 64, 120, 30), width=2)
+            fill = ACCENT if i in (0, 3) else TEXT
+            tw = d.textlength(chip.upper(), font=cf)
+            d.text((x + (cw - tw) / 2, y + 28), chip.upper(), font=cf, fill=fill)
+    paint_card(im, painter)
+
+
+def render_split(im, s):
+    def painter(_ov, d):
+        d.ellipse((132, 198, 146, 212), fill=ACCENT)
+        draw_tracked(d, f"{s['label'].upper()} {s['number']}", F_b(20), ACCENT, 162, 192, 3)
+        d.text((132, 236), s["title"], font=F_bebas(80), fill=TEXT)
+        y = 340
+        pw, ph, gap = 354, 320, 18
+        panes = [
+            (s["left_label"], s["left"], CARD2, TEXT, False),
+            (s["right_label"], s["right"], BG, WHITE, True),
+        ]
+        for i, (lab, txt, fill, col, _hot) in enumerate(panes):
+            x = 132 + i * (pw + gap)
+            d.rounded_rectangle((x, y, x + pw, y + ph), 24, fill=fill)
+            if not _hot:
+                d.rounded_rectangle((x, y, x + pw, y + ph), 24, outline=(46, 64, 120, 30), width=2)
+            draw_tracked(d, lab.upper(), F_b(18), ACCENT, x + 28, y + 28, 3)
+            bf = F_sb(28)
+            lines = wrap(d, txt, bf, pw - 56)
+            draw_lines(d, lines, bf, col, x + 28, y + 78, 40)
+        note_y = y + ph + 28
+        if s.get("script"):
+            bbox = draw_pushkin(d, s["script"], 132, y + ph + 16, 78, min_left=132, min_right=W - 132)
+            note_y = bbox[3] + 12
+        bf = F_m(32)
+        lines = wrap(d, s["note"], bf, 760)
+        draw_lines(d, lines, bf, TEXT, 132, note_y, 44)
+    paint_card(im, painter)
+
+
+def render_plan(im, s, folder: Path):
+    def painter(ov, d):
+        d.ellipse((132, 190, 146, 204), fill=ACCENT)
+        draw_tracked(d, f"СЛАЙД {s['step']}", F_b(20), ACCENT, 162, 184, 3)
+        d.text((132, 224), s["title"], font=F_bebas(84), fill=TEXT)
+        photo = Image.open(resolve_image(s["image"], folder)).convert("RGBA")
+        max_w, max_h = 760, 520
+        scale = min(max_w / photo.width, max_h / photo.height)
+        nw, nh = max(1, int(photo.width * scale)), max(1, int(photo.height * scale))
+        photo = photo.resize((nw, nh), Image.Resampling.LANCZOS)
+        pad = 16
+        frame = Image.new("RGBA", (nw + pad * 2, nh + pad * 2), (0, 0, 0, 0))
+        ImageDraw.Draw(frame).rounded_rectangle((0, 0, nw + pad * 2 - 1, nh + pad * 2 - 1), 16, fill=CARD2)
+        frame.paste(photo, (pad, pad), photo)
+        ov.alpha_composite(frame, (132, 330))
+        if s.get("body"):
+            bf = F_m(32)
+            lines = wrap(d, s["body"], bf, 760)
+            draw_lines(d, lines, bf, TEXT, 132, 330 + nh + pad * 2 + 20, 44)
+    paint_card(im, painter)
+
+
+def render_offers(im, s):
+    def painter(_ov, d):
+        d.ellipse((132, 190, 146, 204), fill=ACCENT)
+        draw_tracked(d, f"СЛАЙД {s['step']}", F_b(20), ACCENT, 162, 184, 3)
+        d.text((132, 224), s["title"], font=F_bebas(80), fill=TEXT)
+        bf = F_m(32)
+        lines = wrap(d, s["body"], bf, 760)
+        yy = draw_lines(d, lines, bf, TEXT, 132, 320, 44) + 18
+        for i, o in enumerate(s["offers"]):
+            hot = i == 1
+            fill = BG if hot else CARD2
+            d.rounded_rectangle((132, yy, 948, yy + 250), 24, fill=fill)
+            if not hot:
+                d.rounded_rectangle((132, yy, 948, yy + 250), 24, outline=(46, 64, 120, 30), width=2)
+            lab = o["badge"].upper()
+            bfnt = F_b(16)
+            tw = tracked_width(d, lab, bfnt, 3)
+            bx0, by0 = 164, yy + 28
+            d.rounded_rectangle((bx0, by0, bx0 + tw + 28, by0 + 36), 999, fill=ACCENT)
+            draw_tracked(d, lab, bfnt, WHITE, bx0 + 14, by0 + 8, 3)
+            title_c = WHITE if hot else TEXT
+            body_c = WHITE if hot else SOFT
+            d.text((164, yy + 80), o["title"], font=F_bebas(48), fill=title_c)
+            bl = wrap(d, o["text"], F_m(28), 720)
+            draw_lines(d, bl, F_m(28), body_c, 164, yy + 144, 38)
+            yy += 272
+    paint_card(im, painter)
+
+
+def render_cta(im, d, s, folder: Path):
+    y = pill(d, s["kicker"], 80, 150, F_b(20))
+    yy = y + 36
+    words = s["words"]
+    gap = 20
+    ww = (W - 160 - gap) // 2
+    hh = 140
+    wf = F_bebas(68)
+    for i, w in enumerate(words):
+        x = 80 + i * (ww + gap)
+        sh = Image.new("RGBA", im.size, (0, 0, 0, 0))
+        sd = ImageDraw.Draw(sh)
+        sd.rounded_rectangle((x, yy + 10, x + ww, yy + hh + 16), 24, fill=(23, 33, 64, 80))
+        im.alpha_composite(sh.filter(ImageFilter.GaussianBlur(12)))
+        d = ImageDraw.Draw(im)
+        d.rounded_rectangle((x, yy, x + ww, yy + hh), 24, fill=ACCENT)
+        tw = d.textlength(w, font=wf)
+        d.text((x + (ww - tw) / 2, yy + 32), w, font=wf, fill=WHITE)
     d = ImageDraw.Draw(im)
-    nf = F_b(20)
-    num = f"{n:02d} / {total:02d}"
-    nw = tracked_width(d, num, nf, 2)
-    bx0, by0 = W - PAD - nw - 18, 36
-    bx1, by1 = W - PAD + 10, 78
-    d.rounded_rectangle((bx0, by0, bx1, by1), 12, fill=WHITE)
-    draw_tracked(d, num, nf, ORANGE, W - PAD - nw, 44, 2)
-    return im
-
-
-def render_numbered(s, n, total, folder: Path):
-    im, d = canvas(False)
-    chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 130), s["title"], font=F_bebas(136) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else NAVY)
-    yy = 320
-    nf = F_bebas(84)
-    bf = F_m(48)
-    n_items = max(1, len(s["items"]))
-    slot = max(150, (H - 80 - yy) // n_items)
-    for i, item in enumerate(s["items"], 1):
-        d.text((PAD, yy), f"{i:02d}", font=nf, fill=ORANGE)
-        lines = wrap(d, item, bf, 720)
-        draw_lines(d, lines, bf, NAVY, PAD + 150, yy + 14, 60)
-        yy += slot
-    return im
-
-
-def render_bigstat(s, n, total, folder: Path):
-    im, d = canvas(True)
-    chrome(d, s["kicker"], n, total, True)
-    d.text((PAD, 180), s["title"], font=F_bebas(72), fill=WHITE)
-    val = s["value"]
-    vf = F_bebas(200 if len(val) <= 4 else 140)
-    tw = d.textlength(val, font=vf)
-    d.text(((W - tw) / 2, 390), val, font=vf, fill=ORANGE)
-    body = F_m(34)
-    inner = W - PAD * 2 - 72
-    lines = wrap(d, s["body"], body, inner)
-    box_h = 48 + 48 * len(lines) + 28
-    by = H - 90 - box_h
-    d.rounded_rectangle((PAD, by, W - PAD, by + box_h), 16, fill=MUTED)
-    draw_lines(d, lines, body, WHITE, PAD + 36, by + 36, 48)
-    return im
-
-
-def render_checks(s, n, total, folder: Path):
-    im, d = canvas(False)
-    chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 120), s["title"], font=F_bebas(136) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else NAVY)
-    yy = 310
-    bf = F_m(46)
-    n_items = max(1, len(s["items"]))
-    slot = max(140, (H - 90 - yy) // n_items)
-    for item in s["items"]:
-        check(d, PAD, yy + 10, 24)
-        lines = wrap(d, item, bf, 780)
-        draw_lines(d, lines, bf, NAVY, PAD + 80, yy, 58)
-        yy += slot
-    if s.get("note"):
-        nf = F_m(26)
-        nlines = wrap(d, s["note"], nf, W - PAD * 2)
-        draw_lines(d, nlines, nf, MUTED, PAD, min(yy + 24, H - 40 - 38 * len(nlines)), 38)
-    return im
-
-
-def render_stages(s, n, total, folder: Path):
-    im, d = canvas(True)
-    chrome(d, s["kicker"], n, total, True)
-    d.text((PAD, 120), s["title"], font=F_bebas(136) if STYLE != "cad" else F_b(56), fill=INK if STYLE == "cad" else WHITE)
-    yy = 280
-    nf = F_bebas(64)
-    bf = F_m(42)
-    n_items = max(1, len(s["items"]))
-    gap = 18
-    remaining = H - 70 - yy
-    box_h = (remaining - gap * (n_items - 1)) // n_items
-    box_h = max(140, box_h)
-    for i, item in enumerate(s["items"], 1):
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 18, fill=MUTED)
-        lines = wrap(d, item, bf, 700)
-        text_h = 50 * len(lines)
-        ty = yy + max(24, (box_h - text_h) // 2 - 8)
-        d.text((PAD + 28, ty), f"{i:02d}", font=nf, fill=ORANGE)
-        draw_lines(d, lines, bf, WHITE, PAD + 150, ty + 6, 50)
-        yy += box_h + gap
-    return im
-
-
-def render_duties(s, n, total, folder: Path):
-    im, d = canvas(False)
-    chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 150), s["title"], font=F_bebas(88), fill=NAVY)
-    yy = 255
-    bf = F_sb(30)
-    for i, item in enumerate(s["items"], 1):
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + 108), 16, fill=GRAY)
-        d.text((PAD + 28, yy + 28), f"{i:02d}", font=F_bebas(42), fill=ORANGE)
-        lines = wrap(d, item, bf, 740)
-        draw_lines(d, lines, bf, NAVY, PAD + 140, yy + 32, 40)
-        yy += 122
-    note_f = F_m(26)
-    lines = wrap(d, s["note"], note_f, W - PAD * 2)
-    draw_lines(d, lines, note_f, MUTED, PAD, yy + 16, 38)
-    return im
-
-
-def render_results(s, n, total, folder: Path):
-    im, d = canvas(True)
-    chrome(d, s["kicker"], n, total, True)
-    d.text((PAD, 150), s["title"], font=F_bebas(88), fill=WHITE)
-    yy = 250
-    lf = F_bebas(32)
-    bf = F_m(28)
-    for row in s["items"]:
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + 155), 16, fill=MUTED)
-        d.text((PAD + 32, yy + 22), row["label"].upper(), font=lf, fill=ORANGE)
-        lines = wrap(d, row["text"], bf, 840)
-        draw_lines(d, lines, bf, WHITE, PAD + 32, yy + 72, 38)
-        yy += 168
-    return im
-
-
-def render_apply(s, n, total, folder: Path):
-    im, d = canvas(False)
-    chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 150), s["title"], font=F_bebas(88), fill=NAVY)
-    yy = 280
+    bbox = draw_pushkin(d, s["script"], 110, yy + hh + 8, 100, min_left=88, min_right=W - 80)
+    yy = bbox[3] + 20
     bf = F_m(32)
-    for i, item in enumerate(s["items"], 1):
-        d.ellipse((PAD, yy + 8, PAD + 22, yy + 30), fill=ORANGE)
-        lines = wrap(d, item, bf, 840)
-        h = draw_lines(d, lines, bf, NAVY, PAD + 48, yy, 44)
-        yy = max(h, yy + 44) + 36
-    nf = F_m(26)
-    lines = wrap(d, s["note"], nf, W - PAD * 2 - 56)
-    box_h = 40 + 38 * len(lines) + 24
-    d.rounded_rectangle((PAD, yy + 8, W - PAD, yy + 8 + box_h), 16, fill=GRAY)
-    draw_lines(d, lines, nf, MUTED, PAD + 28, yy + 36, 38)
-    return im
-
-
-def render_offers(s, n, total, folder: Path):
-    im, d = canvas(False)
-    chrome(d, s["kicker"], n, total, False)
-    d.text((PAD, 110), s["title"], font=F_b(56) if STYLE == "cad" else F_bebas(136), fill=INK if STYLE == "cad" else NAVY)
-    if s.get("body"):
-        bl = wrap(d, s["body"], F_m(40), W - PAD * 2)
-        draw_lines(d, bl, F_m(40), MUTED, PAD, 260, 52)
-        yy = 260 + 52 * len(bl) + 16
-    else:
-        yy = 270
-    bf = F_m(40)
-    tf = F_bebas(80)
-    badge_f = F_b(20)
-    gap = 28
-    remaining = H - 70 - yy
-    box_h = (remaining - gap * (len(s["offers"]) - 1)) // max(1, len(s["offers"]))
-    box_h = max(240, box_h)
-    for off in s["offers"]:
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 24, fill=GRAY)
-        lines = wrap(d, off["text"], bf, W - PAD * 2 - 72)
-        content_h = 56 + 86 + 48 * len(lines)
-        inner_y = yy + max(28, (box_h - content_h) // 2)
-        bw = tracked_width(d, off["badge"].upper(), badge_f, 3) + 32
-        d.rounded_rectangle((PAD + 36, inner_y, PAD + 36 + bw, inner_y + 40), 12, fill=ORANGE)
-        draw_tracked(d, off["badge"].upper(), badge_f, WHITE, PAD + 52, inner_y + 8, 3)
-        d.text((PAD + 36, inner_y + 52), off["title"], font=tf, fill=NAVY)
-        draw_lines(d, lines, bf, MUTED, PAD + 36, inner_y + 148, 48)
-        yy += box_h + gap
-    return im
-
-
-def render_cta(s, n, total, folder: Path):
-    im, d = canvas(True)
-    chrome(d, s["kicker"], n, total, True)
-    fb = F_b(64) if STYLE == "cad" else F_bebas(140)
-    tfill = INK if STYLE == "cad" else WHITE
-    yy = 130
-    for line in s["title"]:
-        d.text((PAD, yy), line, font=fb, fill=tfill)
-        yy += 132
-    expl_f = F_m(38)
     for line in s.get("lines") or []:
-        elines = wrap(d, line, expl_f, W - PAD * 2)
-        yy = draw_lines(d, elines, expl_f, tfill, PAD, yy + 8, 40)
-    yy += 24
+        if " — " in line:
+            a, b = line.split(" — ", 1)
+            af = F_b(32)
+            aw = d.textlength(a, font=af)
+            d.text((80, yy), a, font=af, fill=ACCENT)
+            rest_lines = wrap(d, b, bf, 860 - aw - 40)
+            d.text((80 + aw, yy), " —", font=bf, fill=WHITE)
+            d.text((80 + aw + d.textlength(" — ", font=bf), yy), rest_lines[0], font=bf, fill=WHITE)
+            yy += 46
+            for extra in rest_lines[1:]:
+                d.text((80, yy), extra, font=bf, fill=WHITE)
+                yy += 42
+            yy += 10
+        else:
+            lines = wrap(d, line, bf, 860)
+            yy = draw_lines(d, lines, bf, WHITE, 80, yy, 44) + 10
     if s.get("qr"):
         qr = Image.open(resolve_image(s["qr"], folder)).convert("RGBA")
-        side = 300
+        side = 180
         qr = qr.resize((side, side), Image.Resampling.NEAREST)
-        card = 344
+        card = 200
         cx = (W - card) // 2
-        d.rounded_rectangle((cx, yy, cx + card, yy + card), 24, fill=WHITE)
+        d.rounded_rectangle((cx, yy, cx + card, yy + card), 20, fill=WHITE)
         pad_q = (card - side) // 2
         im.paste(qr, (cx + pad_q, yy + pad_q), qr)
-        yy += card + 28
+        yy += card + 16
     if s.get("link"):
-        lf = F_sb(36)
+        lf = F_sb(30)
         tw = d.textlength(s["link"], font=lf)
-        box_h = 92
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 18, fill=ORANGE)
-        d.text(((W - tw) / 2, yy + 26), s["link"], font=lf, fill=WHITE)
-        yy += box_h + 20
-    elif s.get("words"):
-        wf = F_bebas(64)
-        for word in s["words"]:
-            d.rounded_rectangle((PAD, yy, W - PAD, yy + 108), 18, fill=ORANGE)
-            tw = d.textlength(word, font=wf)
-            d.text(((W - tw) / 2, yy + 22), word, font=wf, fill=WHITE)
-            yy += 128
-    elif s.get("action"):
-        af = F_sb(30)
-        action_lines = wrap(d, s["action"], af, W - PAD * 2 - 64)
-        box_h = 48 + 44 * len(action_lines) + 20
-        d.rounded_rectangle((PAD, yy, W - PAD, yy + box_h), 16, fill=ORANGE)
-        draw_lines(d, action_lines, af, WHITE, PAD + 32, yy + 32, 44)
-        yy += box_h + 28
-    if s.get("note"):
-        nf = F_m(24)
-        nlines = wrap(d, s["note"], nf, W - PAD * 2)
-        draw_lines(d, nlines, nf, MUTED if STYLE == "cad" else (255, 255, 255, 200), PAD, min(yy + 8, H - 160), 34)
-    cf = F_b(32)
-    draw_tracked(d, s["contact"], cf, ORANGE, PAD, min(yy + 20, H - 90), 2)
-    return im
+        d.text(((W - tw) / 2, yy), s["link"], font=lf, fill=ACCENT)
 
 
-RENDERERS = {
-    "cover": render_cover,
-    "hook": render_hook,
-    "page": render_page,
-    "plan": render_plan,
-    "numbered": render_numbered,
-    "bigstat": render_bigstat,
-    "checks": render_checks,
-    "stages": render_stages,
-    "duties": render_duties,
-    "results": render_results,
-    "apply": render_apply,
-    "offers": render_offers,
-    "cta": render_cta,
-}
-
-
-def render_one(slide: dict, n: int, total: int, folder: Path) -> Image.Image:
-    fn = RENDERERS.get(slide["type"])
-    if not fn:
-        raise ValueError(f"unknown slide type {slide['type']}")
-    return fn(slide, n, total, folder).convert("RGB")
+def render_one(slide: dict, idx: int, total: int, account: str, folder: Path) -> Image.Image:
+    im = gradient()
+    d = chrome(im, account, idx, total)
+    t = slide["type"]
+    if t == "cover":
+        render_cover(im, d, slide)
+    elif t == "card":
+        render_card(im, slide)
+    elif t == "insight":
+        render_insight(im, d, slide)
+    elif t == "step":
+        render_step(im, slide)
+    elif t == "chips":
+        render_chips(im, slide)
+    elif t == "split":
+        render_split(im, slide)
+    elif t == "plan":
+        render_plan(im, slide, folder)
+    elif t == "offers":
+        render_offers(im, slide)
+    elif t == "cta":
+        render_cta(im, d, slide, folder)
+    else:
+        raise ValueError(t)
+    return im.convert("RGB")
 
 
 def copy_md(data: dict) -> str:
-    lines = [
+    rows = [
         f"# {data.get('topic', 'Карусель')}",
         "",
-        "| № | Тип | Заголовок |",
-        "|---|---|---|",
+        "| № | Заголовок | Текст | Pushkin |",
+        "|---|---|---|---|",
     ]
     for i, s in enumerate(data["slides"], 1):
         title = s.get("title")
         if isinstance(title, list):
             title = " ".join(title)
-        if not title:
-            title = s.get("image", s["type"])
-        lines.append(f"| {i} | {s['type']} | {title} |")
-    lines += [
+        title = (title or s.get("kicker") or "").replace("\n", " ")
+        if s.get("title_break"):
+            title = f"{title} {s['title_break']}"
+        if s.get("words"):
+            title = " / ".join(s["words"])
+        body = (s.get("body") or s.get("note") or " ".join(s.get("lines") or [])).replace("\n", " ")
+        script = s.get("script") or "—"
+        rows.append(f"| {i} | {title} | {body} | {script} |")
+    rows += [
         "",
         "## Подпись",
         "",
         data["caption"],
         "",
         "Как применить: пост в @xeniia_neuro. Первый слайд — обложка. "
-        "Воронка: КУРС или ВНЕДРЕНИЕ боту @pikus_ai_bot. "
-        "На обложку можно поставить настоящее фото Ксении в оранжевый круг; "
-        "сгенерированное лицо не подставлять.",
+        "Воронка: КУРС или ВНЕДРЕНИЕ боту @pikus_ai_bot.",
         "",
-        "Цифр экономии и сроков нет. 14 замечаний из демо-гайда не переносили: "
-        "в источнике сказано, что они не перепроверены.",
-        "",
-        "Чертежи на слайдах — исходники из гайда (план квартиры и схема ЭОМ), без перерисовки. "
-        "Числа 8 / 8 / 10 / 5 / 31 относятся только к этой схеме референса.",
+        "Цифр экономии и «14 замечаний» нет. Чертежи — исходники из гайда, без перерисовки.",
         "",
         "Источник: практический гайд «Чертёж в Claude · DXF + MCP + нормы + AutoCAD», ноябрь 2026.",
         "",
     ]
-    return "\n".join(lines)
+    return "\n".join(rows)
 
 
 def contact_sheet(paths: list[Path], dest: Path) -> None:
@@ -571,7 +481,7 @@ def contact_sheet(paths: list[Path], dest: Path) -> None:
     tw, gap = 360, 16
     th = int(tw * H / W)
     sheet = Image.new("RGB", (cols * tw + (cols + 1) * gap,
-                              rows * th + (rows + 1) * gap), NAVY[:3])
+                              rows * th + (rows + 1) * gap), (46, 64, 120))
     for i, p in enumerate(paths):
         im = Image.open(p).convert("RGB").resize((tw, th), Image.Resampling.LANCZOS)
         r, c = divmod(i, cols)
@@ -600,16 +510,15 @@ def main() -> int:
     if not folder.is_absolute():
         folder = ROOT / folder
     data = json.loads((folder / "slides.json").read_text(encoding="utf-8"))
-    global STYLE
-    STYLE = data.get("style", "pikus-ig")
     slides = data["slides"]
     if not 8 <= len(slides) <= 10:
         raise SystemExit(f"need 8–10 slides, got {len(slides)}")
+    account = data.get("account", "@XENIIA_NEURO")
     total = len(slides)
     pngs = []
     for i, slide in enumerate(slides, 1):
         dest = folder / f"{i:02d}.png"
-        render_one(slide, i, total, folder).save(dest, "PNG", optimize=True)
+        render_one(slide, i, total, account, folder).save(dest, "PNG", optimize=True)
         pngs.append(dest)
         print(f"wrote {dest.relative_to(ROOT)}")
     contact_sheet(pngs, folder / "preview.png")
