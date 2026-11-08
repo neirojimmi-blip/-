@@ -136,6 +136,24 @@ def draw_lines(draw, lines, fnt, fill, x, y, leading) -> int:
     return yy
 
 
+def term_list(s) -> list[str]:
+    t = s.get("terms") or []
+    if isinstance(t, str):
+        return [t]
+    return list(t)
+
+
+def draw_terms(draw, terms, x, y, max_w, fill=SOFT) -> int:
+    if not terms:
+        return y
+    f = F_m(24)
+    yy = y
+    for t in terms:
+        lines = wrap(draw, t, f, max_w)
+        yy = draw_lines(draw, lines, f, fill, x, yy, 32)
+    return yy
+
+
 def draw_pushkin(draw, text, x, y, size, fill=ACCENT, min_left=80, min_right=W - 80):
     f = F_pk(size)
     bbox = draw.textbbox((x, y), text, font=f)
@@ -191,14 +209,25 @@ def render_cover(im, d, s):
         d.text((80, yy), line, font=fb, fill=WHITE)
         yy += 148
     pk_y = yy + 12
-    bbox = draw_pushkin(d, s["script"], 80, pk_y, 118, min_left=80, min_right=W - 80)
+    pk_size = 118 if len(s["script"]) <= 6 else 82
+    bbox = draw_pushkin(d, s["script"], 80, pk_y, pk_size, min_left=80, min_right=W - 80)
     body_f = F_m(40)
     lines = wrap(d, s["body"], body_f, 860)
-    draw_lines(d, lines, body_f, WHITE, 80, bbox[3] + 28, 54)
+    body_end = draw_lines(d, lines, body_f, WHITE, 80, bbox[3] + 28, 54)
+    terms = term_list(s)
+    if terms:
+        tf = F_m(26)
+        tlines = []
+        for t in terms:
+            tlines.extend(wrap(d, t, tf, 860))
+        ty = H - 168 - 34 * len(tlines)
+        if ty < body_end + 28:
+            ty = body_end + 28
+        draw_lines(d, tlines, tf, WHITE70, 80, ty, 34)
     hint = F_sb(24)
     label = "ЛИСТАЙ  →"
     tw = d.textlength(label, font=hint)
-    d.text((W - 80 - tw, H - 110), label, font=hint, fill=WHITE70)
+    d.text((W - 80 - tw, H - 96), label, font=hint, fill=WHITE70)
 
 
 def render_card(im, s):
@@ -209,7 +238,8 @@ def render_card(im, s):
         d.rounded_rectangle((132, 370, 220, 376), 3, fill=ACCENT)
         body_f = F_m(40)
         lines = wrap(d, s["body"], body_f, 760)
-        draw_lines(d, lines, body_f, TEXT, 132, 420, 54)
+        yy = draw_lines(d, lines, body_f, TEXT, 132, 420, 54)
+        draw_terms(d, term_list(s), 132, yy + 20, 760)
     paint_card(im, painter)
 
 
@@ -243,7 +273,8 @@ def render_step(im, s):
         d.rounded_rectangle((132, rule_y, 220, rule_y + 6), 3, fill=ACCENT)
         body_f = F_m(40)
         lines = wrap(d, s["body"], body_f, 760)
-        draw_lines(d, lines, body_f, TEXT, 132, body_y, 54)
+        yy = draw_lines(d, lines, body_f, TEXT, 132, body_y, 54)
+        draw_terms(d, term_list(s), 132, yy + 20, 760)
     paint_card(im, painter)
 
 
@@ -273,6 +304,9 @@ def render_chips(im, s):
             fill = ACCENT if i in (0, 3) else TEXT
             tw = d.textlength(chip.upper(), font=cf)
             d.text((x + (cw - tw) / 2, y + 28), chip.upper(), font=cf, fill=fill)
+        rows_n = (len(chips) + cols - 1) // cols
+        ty = yy + rows_n * (ch + gap) - gap + 24
+        draw_terms(d, term_list(s), 132, ty, 760)
     paint_card(im, painter)
 
 
@@ -302,7 +336,8 @@ def render_split(im, s):
             note_y = bbox[3] + 12
         bf = F_m(32)
         lines = wrap(d, s["note"], bf, 760)
-        draw_lines(d, lines, bf, TEXT, 132, note_y, 44)
+        yy = draw_lines(d, lines, bf, TEXT, 132, note_y, 44)
+        draw_terms(d, term_list(s), 132, yy + 16, 760)
     paint_card(im, painter)
 
 
@@ -321,10 +356,12 @@ def render_plan(im, s, folder: Path):
         ImageDraw.Draw(frame).rounded_rectangle((0, 0, nw + pad * 2 - 1, nh + pad * 2 - 1), 16, fill=CARD2)
         frame.paste(photo, (pad, pad), photo)
         ov.alpha_composite(frame, (132, 330))
+        yy = 330 + nh + pad * 2 + 20
         if s.get("body"):
             bf = F_m(32)
             lines = wrap(d, s["body"], bf, 760)
-            draw_lines(d, lines, bf, TEXT, 132, 330 + nh + pad * 2 + 20, 44)
+            yy = draw_lines(d, lines, bf, TEXT, 132, yy, 44)
+        draw_terms(d, term_list(s), 132, yy + 12, 760)
     paint_card(im, painter)
 
 
@@ -354,6 +391,7 @@ def render_offers(im, s):
             bl = wrap(d, o["text"], F_m(28), 720)
             draw_lines(d, bl, F_m(28), body_c, 164, yy + 144, 38)
             yy += 272
+        draw_terms(d, term_list(s), 132, yy + 8, 760)
     paint_card(im, painter)
 
 
