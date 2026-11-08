@@ -136,6 +136,10 @@ def draw_lines(draw, lines, fnt, fill, x, y, leading) -> int:
     return yy
 
 
+def orange_label(s, fallback: str) -> str:
+    return (s.get("label") or fallback).upper()
+
+
 def term_list(s) -> list[str]:
     t = s.get("terms") or []
     if isinstance(t, str):
@@ -233,7 +237,7 @@ def render_cover(im, d, s):
 def render_card(im, s):
     def painter(_ov, d):
         d.ellipse((132, 206, 146, 220), fill=ACCENT)
-        draw_tracked(d, f"СЛАЙД {s['step']}", F_b(20), ACCENT, 162, 200, 3)
+        draw_tracked(d, orange_label(s, f"слайд {s['step']}"), F_b(20), ACCENT, 162, 200, 3)
         d.text((132, 250), s["title"], font=F_bebas(92), fill=TEXT)
         d.rounded_rectangle((132, 370, 220, 376), 3, fill=ACCENT)
         body_f = F_m(40)
@@ -261,7 +265,7 @@ def render_insight(im, d, s):
 def render_step(im, s):
     def painter(_ov, d):
         d.ellipse((132, 206, 146, 220), fill=ACCENT)
-        draw_tracked(d, f"{s['label'].upper()} {s['number']}", F_b(20), ACCENT, 162, 200, 3)
+        draw_tracked(d, orange_label(s, f"шаг {s.get('number', '')}"), F_b(20), ACCENT, 162, 200, 3)
         d.text((132, 250), s["title"], font=F_bebas(92), fill=TEXT)
         if s.get("script"):
             bbox = draw_pushkin(d, s["script"], 132, 360, 84, min_left=132, min_right=W - 132)
@@ -281,7 +285,7 @@ def render_step(im, s):
 def render_chips(im, s):
     def painter(_ov, d):
         d.ellipse((132, 198, 146, 212), fill=ACCENT)
-        draw_tracked(d, f"{s['label'].upper()} {s['number']}", F_b(20), ACCENT, 162, 192, 3)
+        draw_tracked(d, orange_label(s, f"шаг {s.get('number', '')}"), F_b(20), ACCENT, 162, 192, 3)
         fb = F_bebas(80)
         yy = 240
         for line in s["title"].split("\n"):
@@ -313,7 +317,7 @@ def render_chips(im, s):
 def render_split(im, s):
     def painter(_ov, d):
         d.ellipse((132, 198, 146, 212), fill=ACCENT)
-        draw_tracked(d, f"{s['label'].upper()} {s['number']}", F_b(20), ACCENT, 162, 192, 3)
+        draw_tracked(d, orange_label(s, f"шаг {s.get('number', '')}"), F_b(20), ACCENT, 162, 192, 3)
         d.text((132, 236), s["title"], font=F_bebas(80), fill=TEXT)
         y = 340
         pw, ph, gap = 354, 320, 18
@@ -344,7 +348,7 @@ def render_split(im, s):
 def render_plan(im, s, folder: Path):
     def painter(ov, d):
         d.ellipse((132, 190, 146, 204), fill=ACCENT)
-        draw_tracked(d, f"СЛАЙД {s['step']}", F_b(20), ACCENT, 162, 184, 3)
+        draw_tracked(d, orange_label(s, f"слайд {s['step']}"), F_b(20), ACCENT, 162, 184, 3)
         d.text((132, 224), s["title"], font=F_bebas(84), fill=TEXT)
         photo = Image.open(resolve_image(s["image"], folder)).convert("RGBA")
         max_w, max_h = 760, 520
@@ -368,7 +372,7 @@ def render_plan(im, s, folder: Path):
 def render_offers(im, s):
     def painter(_ov, d):
         d.ellipse((132, 190, 146, 204), fill=ACCENT)
-        draw_tracked(d, f"СЛАЙД {s['step']}", F_b(20), ACCENT, 162, 184, 3)
+        draw_tracked(d, orange_label(s, f"слайд {s['step']}"), F_b(20), ACCENT, 162, 184, 3)
         d.text((132, 224), s["title"], font=F_bebas(80), fill=TEXT)
         bf = F_m(32)
         lines = wrap(d, s["body"], bf, 760)
