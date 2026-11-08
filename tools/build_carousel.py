@@ -404,9 +404,17 @@ def render_cta(im, d, s, folder: Path):
     yy = y + 36
     words = s["words"]
     gap = 20
-    ww = (W - 160 - gap) // 2
-    hh = 140
-    wf = F_bebas(68)
+    n = max(1, len(words))
+    if n == 1:
+        ww = W - 160
+        hh = 200
+        wf = F_bebas(140 if len(words[0]) <= 4 else 108)
+        text_y = 48 if len(words[0]) <= 4 else 52
+    else:
+        ww = (W - 160 - gap * (n - 1)) // n
+        hh = 140
+        wf = F_bebas(68)
+        text_y = 32
     for i, w in enumerate(words):
         x = 80 + i * (ww + gap)
         sh = Image.new("RGBA", im.size, (0, 0, 0, 0))
@@ -416,7 +424,7 @@ def render_cta(im, d, s, folder: Path):
         d = ImageDraw.Draw(im)
         d.rounded_rectangle((x, yy, x + ww, yy + hh), 24, fill=ACCENT)
         tw = d.textlength(w, font=wf)
-        d.text((x + (ww - tw) / 2, yy + 32), w, font=wf, fill=WHITE)
+        d.text((x + (ww - tw) / 2, yy + text_y), w, font=wf, fill=WHITE)
     d = ImageDraw.Draw(im)
     bbox = draw_pushkin(d, s["script"], 110, yy + hh + 8, 100, min_left=88, min_right=W - 80)
     yy = bbox[3] + 20
@@ -507,7 +515,8 @@ def copy_md(data: dict) -> str:
         data["caption"],
         "",
         "Как применить: пост в @xeniia_neuro. Первый слайд — обложка. "
-        "Воронка: КУРС или ВНЕДРЕНИЕ боту @pikus_ai_bot.",
+        "Воронка: комментарий ЧЕРТЕЖ → разбор в Direct → промпты в канале "
+        "https://t.me/xeniia_neuro (сценарий: funnels/chertezh/).",
         "",
         "Цифр экономии и «14 замечаний» нет. Чертежи — исходники из гайда, без перерисовки.",
         "",
@@ -519,7 +528,12 @@ def copy_md(data: dict) -> str:
 
 def contact_sheet(paths: list[Path], dest: Path) -> None:
     n = len(paths)
-    cols, rows = (4, 2) if n == 8 else (3, 3)
+    if n <= 8:
+        cols, rows = 4, 2
+    elif n == 9:
+        cols, rows = 3, 3
+    else:
+        cols, rows = 5, 2
     tw, gap = 360, 16
     th = int(tw * H / W)
     sheet = Image.new("RGB", (cols * tw + (cols + 1) * gap,
